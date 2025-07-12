@@ -60,10 +60,10 @@ benchmarks = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/toucandb"
+Homepage = "https://github.com/pH-7/toucandb"
 Documentation = "https://toucandb.readthedocs.io"
-Repository = "https://github.com/yourusername/toucandb"
-"Bug Tracker" = "https://github.com/yourusername/toucandb/issues"
+Repository = "https://github.com/pH-7/toucandb"
+"Bug Tracker" = "https://github.com/pH-7/toucandb/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

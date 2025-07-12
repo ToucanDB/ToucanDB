@@ -4,7 +4,7 @@
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://github.com/yourusername/toucandb/workflows/Tests/badge.svg)](https://github.com/yourusername/toucandb/actions)
+[![Tests](https://github.com/pH-7/toucandb/workflows/Tests/badge.svg)](https://github.com/pH-7/toucandb/actions)
 
 ToucanDB is a modern, security-first vector database designed specifically for ML workloads. Named after the vibrant toucan bird known for its precision and adaptability, ToucanDB brings the same qualities to vector similarity search and storage.
 

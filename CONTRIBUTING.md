@@ -22,7 +22,7 @@ Thank you for your interest in contributing to ToucanDB! We welcome contribution
 
 1. **Fork and clone the repository**
    ```bash
-   git clone https://github.com/yourusername/toucandb.git
+   git clone https://github.com/pH-7/toucandb.git
    cd toucandb
    ```
 
