@@ -1,0 +1,102 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "toucandb"
+version = "0.1.0"
+description = "ToucanDB - A secure, efficient ML-first vector database engine"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "ToucanDB Contributors", email = "contributors@toucandb.org"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "cryptography>=41.0.0",
+    "pydantic>=2.0.0",
+    "msgpack>=1.0.0",
+    "lz4>=4.0.0",
+    "xxhash>=3.0.0",
+    "faiss-cpu>=1.7.4",
+    "sentence-transformers>=2.2.0",
+    "asyncio-mqtt>=0.13.0",
+    "aiofiles>=23.0.0",
+    "uvloop>=0.17.0; sys_platform != 'win32'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.0.0",
+]
+gpu = [
+    "faiss-gpu>=1.7.4",
+    "cupy-cuda12x>=12.0.0",
+]
+benchmarks = [
+    "memory-profiler>=0.61.0",
+    "psutil>=5.9.0",
+    "matplotlib>=3.7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/toucandb"
+Documentation = "https://toucandb.readthedocs.io"
+Repository = "https://github.com/yourusername/toucandb"
+"Bug Tracker" = "https://github.com/yourusername/toucandb/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["toucandb*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=toucandb --cov-report=html --cov-report=term-missing"
+asyncio_mode = "auto"
