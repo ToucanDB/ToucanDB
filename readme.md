@@ -189,7 +189,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ## 📄 License
 
-ToucanDB is released under the MIT License. See [LICENSE](LICENSE) for details.
+ToucanDB is released under the MIT License. See [license](license.md) for further details.
 
 ## 🎯 Roadmap
 
