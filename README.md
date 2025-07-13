@@ -1,24 +1,4 @@
-# 🦜 ToucanDB - Th## 🎯 Perfect for AI & LLM Applications ML-First V## 🌟 Key Features
-
-### 🧠 **ML-First & AI-Native Design**
-- **Multi-Model Embedding Support**: Works seamlessly with OpenAI, Sentence Transformers, Hugging Face, and custom embedding models
-- **High-Dimensional Vectors**: Handle 1D to 10,000+ dimensional vectors with optimized storage and indexing
-- **Semantic Search**: Find similar content by meaning using cosine similarity, Euclidean distance, and more
-- **Rich Metadata**: Store unlimited context alongside vectors for advanced filtering and retrieval
-- **Quantization Support**: Automatic FP16/INT8 quantization for memory-efficient large-scale deployments
-
-### ⚡ **Ultra-High Performance**
-- **Sub-Millisecond Search**: Advanced HNSW and IVF indexing for lightning-fast vector similarity search
-- **SIMD-Optimized**: Vectorized operations using modern CPU instructions for maximum throughput
-- **Adaptive Indexing**: Smart algorithms that automatically optimize for your data patterns and query types
-- **Intelligent Caching**: LRU and frequency-based caching with memory pooling for optimal performance
-- **Async I/O**: Non-blocking operations for real-time applications and concurrent workloads
-
-### 🔒 **Enterprise-Grade Security**
-- **End-to-End Encryption**: AES-256-GCM encryption for data at rest and in transit
-- **Zero-Trust Architecture**: Granular access controls and role-based permissions
-- **Audit Logging**: Comprehensive logs for compliance and security monitoring
-- **Memory Safety**: Secure operations that prevent data leaks and buffer overflowsLLM Applications
+# 🦜 ToucanDB - Micro ML-First Vectorial DB Engine
 
 **Transform Unstructured Data into Intelligent Vector Embeddings • Built for AI-Powered Search & LLM Integration**
 
