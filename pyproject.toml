@@ -36,15 +36,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-
-[project.urls]
-Homepage = "https://github.com/pH-7/ToucanDB"
-Documentation = "https://github.com/pH-7/ToucanDB#readme"
-Repository = "https://github.com/pH-7/ToucanDB.git"
-Issues = "https://github.com/pH-7/ToucanDB/issues"
-Changelog = "https://github.com/pH-7/ToucanDB/releases"
-"Author Website" = "https://ph7.me"
-
 requires-python = ">=3.9"
 dependencies = [
     "numpy>=1.24.0",
@@ -60,6 +51,14 @@ dependencies = [
     "aiofiles>=23.0.0",
     "uvloop>=0.17.0; sys_platform != 'win32'",
 ]
+
+[project.urls]
+Homepage = "https://github.com/pH-7/ToucanDB"
+Documentation = "https://github.com/pH-7/ToucanDB#readme"
+Repository = "https://github.com/pH-7/ToucanDB.git"
+Issues = "https://github.com/pH-7/ToucanDB/issues"
+Changelog = "https://github.com/pH-7/ToucanDB/releases"
+"Author Website" = "https://ph7.me"
 
 [project.optional-dependencies]
 dev = [
