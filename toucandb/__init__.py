@@ -28,8 +28,11 @@ from .vector_engine import VectorCollection
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-__version__ = "0.1.0"
-__author__ = "ToucanDB Contributors"
+__version__ = "1.0.0"
+__author__ = "Pierre-Henry Soria"
+__email__ = "hello@ph7.me"
+__license__ = "MIT"
+__description__ = "A secure, efficient ML-first vector database engine"
 
 # Export public API
 __all__ = [

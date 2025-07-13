@@ -4,17 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "toucandb"
-version = "0.1.0"
+version = "1.0.0"
 description = "ToucanDB - A secure, efficient ML-first vector database engine"
 readme = "readme.md"
 license = {file = "license.md"}
 authors = [
-    {name = "ToucanDB Contributors", email = "contributors@toucandb.org"}
+    {name = "Pierre-Henry Soria", email = "hello@ph7.me"}
+]
+maintainers = [
+    {name = "Pierre-Henry Soria", email = "hello@ph7.me"}
+]
+keywords = [
+    "vector-database", "ml", "ai", "machine-learning", "embeddings", 
+    "similarity-search", "faiss", "vector-search", "database", "async"
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -22,7 +31,19 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Database",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
 ]
+
+[project.urls]
+Homepage = "https://github.com/pH-7/ToucanDB"
+Documentation = "https://github.com/pH-7/ToucanDB#readme"
+Repository = "https://github.com/pH-7/ToucanDB.git"
+Issues = "https://github.com/pH-7/ToucanDB/issues"
+Changelog = "https://github.com/pH-7/ToucanDB/releases"
+"Author Website" = "https://ph7.me"
+
 requires-python = ">=3.9"
 dependencies = [
     "numpy>=1.24.0",
@@ -58,12 +79,6 @@ benchmarks = [
     "psutil>=5.9.0",
     "matplotlib>=3.7.0",
 ]
-
-[project.urls]
-Homepage = "https://github.com/pH-7/toucandb"
-Documentation = "https://toucandb.readthedocs.io"
-Repository = "https://github.com/pH-7/toucandb"
-"Bug Tracker" = "https://github.com/pH-7/toucandb/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

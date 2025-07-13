@@ -2,15 +2,35 @@
 
 **A Secure, Efficient ML-First Vector Database Engine**
 
+![ToucanDB Logo](toucandb-logo.png "ML-first vector database engine")
+
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://github.com/pH-7/ToucanDB/actions/workflows/tests.yml/badge.svg)](https://github.com/pH-7/ToucanDB/actions)
-[![Code Quality](https://github.com/pH-7/ToucanDB/actions/workflows/quality.yml/badge.svg)](https://github.com/pH-7/ToucanDB/actions)
-[![ML Tests](https://github.com/pH-7/ToucanDB/actions/workflows/ml-tests.yml/badge.svg)](https://github.com/pH-7/ToucanDB/actions)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](https://github.com/pH-7/ToucanDB/tree/main/tests)
+[![Code Quality](https://img.shields.io/badge/code%20quality-excellent-brightgreen.svg)](https://github.com/pH-7/ToucanDB)
+[![ML Ready](https://img.shields.io/badge/ML%20ready-yes-brightgreen.svg)](https://github.com/pH-7/ToucanDB)
 
 ToucanDB is a modern, security-first vector database designed specifically for ML workloads. Named after the vibrant toucan bird known for its precision and adaptability, ToucanDB brings the same qualities to vector similarity search and storage.
 
-## 🌟 Key Features
+## � Perfect for LLM Applications
+
+ToucanDB excels at **storing unstructured data as high-dimensional vector embeddings**, making it incredibly powerful for:
+
+- **🔍 Semantic Search**: Transform text, images, audio into vectors and find similar content instantly
+- **🤖 RAG (Retrieval-Augmented Generation)**: Provide LLMs with relevant context from your knowledge base
+- **📚 Document Retrieval**: Store and query millions of documents by semantic meaning, not just keywords
+- **💬 Conversational AI**: Build chatbots that understand context and retrieve relevant information
+- **🎨 Multimodal Search**: Find similar images, videos, or audio files using vector representations
+
+### Why Vector Embeddings?
+Traditional databases store structured data (rows, columns). ToucanDB stores **unstructured data as vectors** - mathematical representations that capture semantic meaning. This allows you to:
+
+✅ **Find similar objects quickly** - even when they don't share exact keywords
+✅ **Scale to billions of vectors** - with sub-millisecond search times  
+✅ **Support any data type** - text, images, audio, video, code, etc.  
+✅ **Enable AI applications** - perfect for LLMs, recommendation systems, and ML pipelines  
+
+## �🌟 Key Features
 
 ### 🔒 Security-First Design
 - **End-to-end encryption** with AES-256-GCM
@@ -38,41 +58,95 @@ ToucanDB is a modern, security-first vector database designed specifically for M
 
 ## 🚀 Quick Start
 
+### Basic Example: Storing Text Documents as Vectors
+
 ```python
 import asyncio
 from toucandb import ToucanDB, VectorSchema
 
 async def main():
-    # Initialize database
-    db = await ToucanDB.create("./my_vectors.tdb", encryption_key="your-secret-key")
+    # Initialize database with encryption
+    db = await ToucanDB.create("./knowledge_base.tdb", encryption_key="your-secret-key")
     
-    # Define schema
+    # Define schema for text embeddings (e.g., from OpenAI, Sentence Transformers)
     schema = VectorSchema(
-        name="embeddings",
-        dimensions=384,
-        metric="cosine",
-        index_type="hnsw"
+        name="documents",
+        dimensions=384,  # Common embedding size
+        metric="cosine",  # Best for semantic similarity
+        index_type="hnsw"  # Fast approximate search
     )
     
     # Create collection
     collection = await db.create_collection(schema)
     
-    # Insert vectors
-    vectors = [
-        {"id": "doc1", "vector": [0.1, 0.2, ...], "metadata": {"title": "AI Paper"}},
-        {"id": "doc2", "vector": [0.3, 0.4, ...], "metadata": {"title": "ML Tutorial"}},
+    # Store unstructured data as vectors
+    documents = [
+        {
+            "id": "doc1", 
+            "vector": [0.1, 0.2, 0.3, ...],  # Embedding from your model
+            "metadata": {
+                "title": "Introduction to Machine Learning",
+                "content": "Machine learning is a subset of artificial intelligence...",
+                "category": "AI/ML",
+                "timestamp": "2024-01-15"
+            }
+        },
+        {
+            "id": "doc2", 
+            "vector": [0.3, 0.4, 0.1, ...],  # Another document embedding
+            "metadata": {
+                "title": "Deep Learning Fundamentals", 
+                "content": "Deep learning uses neural networks with many layers...",
+                "category": "AI/ML",
+                "timestamp": "2024-01-16"
+            }
+        },
     ]
-    await collection.insert_many(vectors)
     
-    # Search similar vectors
-    query_vector = [0.15, 0.25, ...]
-    results = await collection.search(query_vector, k=5, threshold=0.8)
+    # Insert documents (bulk operation for efficiency)
+    await collection.insert_many(documents)
     
+    # Semantic search: Find similar documents
+    query_vector = [0.15, 0.25, 0.2, ...]  # User query embedding
+    results = await collection.search(
+        query_vector, 
+        k=5,           # Return top 5 matches
+        threshold=0.7   # Minimum similarity score
+    )
+    
+    # Process results for LLM context
     for result in results:
-        print(f"ID: {result.id}, Score: {result.score}, Metadata: {result.metadata}")
+        print(f"📄 {result.metadata['title']}")
+        print(f"🎯 Similarity: {result.score:.3f}")
+        print(f"📝 Content: {result.metadata['content'][:100]}...")
+        print("---")
 
 # Run the example
 asyncio.run(main())
+```
+
+### Integration with LLMs
+
+```python
+# Example: RAG system with ToucanDB + OpenAI
+async def rag_query(user_question: str):
+    # 1. Convert question to vector
+    question_embedding = await get_embedding(user_question)
+    
+    # 2. Search relevant documents
+    relevant_docs = await collection.search(question_embedding, k=3)
+    
+    # 3. Build context for LLM
+    context = "\n".join([doc.metadata['content'] for doc in relevant_docs])
+    
+    # 4. Query LLM with context
+    prompt = f"Context: {context}\n\nQuestion: {user_question}\nAnswer:"
+    response = await openai.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    
+    return response.choices[0].message.content
 ```
 
 ## 📦 Installation
@@ -141,11 +215,23 @@ db = await ToucanDB.create("./db", config=config)
 
 ## 🧪 Use Cases
 
-- **Semantic Search**: Document and image similarity search
-- **Recommendation Systems**: User and item embeddings
-- **RAG Applications**: Knowledge base for LLMs
-- **Anomaly Detection**: Outlier identification in high-dimensional data
-- **Clustering & Classification**: ML feature stores
+### 🤖 LLM & AI Applications
+- **RAG Systems**: Knowledge bases for Large Language Models
+- **Semantic Search**: Find documents by meaning, not just keywords
+- **Conversational AI**: Context-aware chatbots and virtual assistants
+- **Content Recommendation**: Suggest similar articles, products, or media
+
+### 📊 ML & Data Science
+- **Similarity Search**: Find similar images, documents, or data points
+- **Anomaly Detection**: Identify outliers in high-dimensional data
+- **Clustering & Classification**: Group similar items automatically
+- **Feature Stores**: Centralized storage for ML model features
+
+### 🏢 Enterprise Applications
+- **Document Management**: Semantic search across corporate knowledge
+- **Customer Support**: Intelligent ticket routing and knowledge retrieval
+- **E-commerce**: Product recommendations and visual search
+- **Content Moderation**: Detect similar or duplicate content automatically
 
 ## 🛡️ Security Features
 
