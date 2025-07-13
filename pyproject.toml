@@ -6,8 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "toucandb"
 version = "1.0.0"
 description = "ToucanDB - A secure, efficient ML-first vector database engine"
-readme = "readme.md"
-license = {file = "license.md"}
+readme = "README.md"
+license = {file = "LICENSE.md"}
 authors = [
     {name = "Pierre-Henry Soria", email = "hello@ph7.me"}
 ]
