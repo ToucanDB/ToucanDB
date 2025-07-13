@@ -1,5 +1,14 @@
 # ToucanDB .gitignore
 
+# ToucanDB specific
+*.tdb
+*_db/
+test_*.py
+quick_validation.py
+test_ml_features.py
+test_ml_functionality.py
+test_simple.py
+
 # Python
 __pycache__/
 *.py[cod]
