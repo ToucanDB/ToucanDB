@@ -16,8 +16,6 @@
 
 ✨ **What makes ToucanDB special?** Unlike traditional databases that struggle with unstructured data, ToucanDB is designed from the ground up to store, index, and search high-dimensional vectors with sub-millisecond precision. Whether you're building chatbots, knowledge bases, or recommendation systems, ToucanDB makes your AI applications intelligent and blazingly fast.
 
-## � Perfect for LLM Applications
-
 **ToucanDB excels at transforming unstructured data into high-dimensional vector embeddings**, enabling revolutionary AI applications that understand semantic meaning:
 
 ### 🤖 **Large Language Model (LLM) Integration**
