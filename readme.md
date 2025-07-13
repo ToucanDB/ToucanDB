@@ -2,7 +2,7 @@
 
 **A Secure, Efficient ML-First Vector Database Engine**
 
-![ToucanDB Logo](toucandb-logo.png "ML-first vector database engine")
+![ToucanDB Logo](assets/toucandb-logo.png "ML-first vector database engine")
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -258,6 +258,24 @@ ToucanDB is designed for high performance:
 - **Latency**: Sub-millisecond search response times
 - **Scale**: Billions of vectors with horizontal scaling
 - **Memory**: Optimized memory usage with smart compression
+
+## 🦜 Why "ToucanDB"?
+
+Just like the vibrant toucan bird, ToucanDB embodies the perfect combination of **precision, adaptability, and intelligence** that makes it exceptional for ML applications.
+
+![Why it's called ToucanDB](assets/why-its-called-toucandb.jpeg "The inspiration behind ToucanDB - Pierre-Henry with toucans, showing the precision and adaptability that inspired the database")
+
+### The Toucan Inspiration
+
+🎯 **Precision**: Toucans have incredibly precise beaks that can reach exactly where they need to go - just like ToucanDB's vector search that finds exactly the right data points with sub-millisecond accuracy.
+
+🔄 **Adaptability**: These remarkable birds adapt to diverse environments and data sources - mirroring how ToucanDB seamlessly handles any type of unstructured data (text, images, audio, code).
+
+🧠 **Intelligence**: Toucans are highly intelligent creatures with excellent memory - reflecting ToucanDB's smart caching, adaptive indexing, and ML-first design that learns and optimizes performance.
+
+🌈 **Vibrancy**: The toucan's colorful nature represents ToucanDB's rich feature set and the diverse, multimodal data it can process and understand.
+
+Just as toucans navigate complex forest ecosystems with ease, ToucanDB navigates the complex landscape of high-dimensional vector spaces, making ML applications soar! 🚀
 
 ## 👨‍💻 Who Built This Vector Database Engine?
 
