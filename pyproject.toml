@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "toucandb"
 version = "1.0.0"
-description = "ToucanDB - A secure, efficient ML-first vector database engine"
+description = "ToucanDB - ML-first vector database for AI applications, LLM integration, and semantic search of unstructured data"
 readme = "README.md"
 license = {file = "LICENSE.md"}
 authors = [
@@ -16,7 +16,8 @@ maintainers = [
 ]
 keywords = [
     "vector-database", "ml", "ai", "machine-learning", "embeddings", 
-    "similarity-search", "faiss", "vector-search", "database", "async"
+    "similarity-search", "faiss", "vector-search", "database", "async",
+    "rag", "llm", "semantic-search", "unstructured-data", "artificial-intelligence"
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
