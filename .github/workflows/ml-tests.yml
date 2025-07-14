@@ -237,7 +237,7 @@ jobs:
 
     - name: Upload test artifacts
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ml-test-results-${{ matrix.python-version }}-${{ matrix.test-suite }}
         path: |
