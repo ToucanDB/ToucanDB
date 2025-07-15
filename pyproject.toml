@@ -9,10 +9,10 @@ description = "ToucanDB - ML-first vector database for AI applications, LLM inte
 readme = "README.md"
 license = {file = "LICENSE.md"}
 authors = [
-    {name = "Pierre-Henry Soria", email = "hello@ph7.me"}
+    {name = "Pierre-Henry Soria", email = "pierre@ph7.me"}
 ]
 maintainers = [
-    {name = "Pierre-Henry Soria", email = "hello@ph7.me"}
+    {name = "Pierre-Henry Soria", email = "pierre@ph7.me"}
 ]
 keywords = [
     "vector-database", "ml", "ai", "machine-learning", "embeddings", 

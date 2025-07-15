@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 __version__ = "1.0.0"
 __author__ = "Pierre-Henry Soria"
-__email__ = "hello@ph7.me"
+__email__ = "pierre@ph7.me"
 __license__ = "MIT"
 __description__ = "A secure, efficient ML-first vector database engine"
 

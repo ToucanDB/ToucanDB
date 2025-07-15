@@ -51,7 +51,3 @@ python scripts/analyze_project.py
 - They are excluded from PyPI package distributions
 - They help maintain code quality and verify ML capabilities
 - Perfect for CI/CD pipeline integration
-
----
-
-**For questions about development scripts**: hello@ph7.me
