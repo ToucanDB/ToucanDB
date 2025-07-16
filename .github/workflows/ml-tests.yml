@@ -64,7 +64,7 @@ jobs:
                 vector = vector / np.linalg.norm(vector)
                 vectors.append({'id': f'doc_{i}', 'vector': vector.tolist(), 'metadata': {'category': f'cat_{i%5}'}})
             
-            await collection.insert_many(vectors)
+            await collection.insert(vectors)
             
             # Test search
             query = np.random.random(384).astype(np.float32)
@@ -105,7 +105,7 @@ jobs:
                         vector = vector / np.linalg.norm(vector)
                     vectors.append({'id': f'vec_{i}', 'vector': vector.tolist(), 'metadata': {'idx': i}})
                 
-                await collection.insert_many(vectors)
+                await collection.insert(vectors)
                 
                 query = np.random.random(256).astype(np.float32)
                 if metric == DistanceMetric.COSINE:
@@ -145,7 +145,7 @@ jobs:
             
             # Benchmark insertion
             start_time = time.time()
-            await collection.insert_many(vectors)
+            await collection.insert(vectors)
             insert_time = time.time() - start_time
             insert_rate = len(vectors) / insert_time
             
@@ -214,7 +214,7 @@ jobs:
                         'metadata': {'text': sentence, 'length': len(sentence)}
                     })
                 
-                await collection.insert_many(vectors)
+                await collection.insert(vectors)
                 
                 # Search for similar sentences
                 query_embedding = model.encode(['AI and machine learning applications'])
