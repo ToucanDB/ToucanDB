@@ -69,8 +69,9 @@ jobs:
             # Test search
             query = np.random.random(384).astype(np.float32)
             query = query / np.linalg.norm(query)
-            results = await collection.search(query.tolist(), k=10)
-            
+            from toucandb.types import SearchQuery
+            search_query = SearchQuery(vector=query_embedding[0].tolist(), k=3)
+            results = await collection.search(search_query)
             assert len(results) > 0, 'Search returned no results'
             assert all(r.score >= 0 for r in results), 'Invalid similarity scores'
             
