@@ -24,7 +24,7 @@ T = TypeVar('T')
 class DistanceMetric(str, Enum):
     """Supported distance metrics for vector similarity."""
     COSINE = "cosine"
-    EUCLIDEAN = "euclidean" 
+    EUCLIDEAN = "euclidean"
     DOT_PRODUCT = "dot_product"
     MANHATTAN = "manhattan"
     HAMMING = "hamming"
@@ -63,17 +63,17 @@ class Vector:
     data: np.ndarray
     metadata: MetadataDict
     timestamp: datetime
-    
+
     def __post_init__(self):
         """Ensure vector data is a numpy array."""
         if not isinstance(self.data, np.ndarray):
             self.data = np.array(self.data, dtype=np.float32)
-    
+
     @property
     def dimensions(self) -> int:
         """Get the number of dimensions in the vector."""
         return len(self.data)
-    
+
     def normalize(self) -> 'Vector':
         """Return a normalized copy of the vector."""
         norm = np.linalg.norm(self.data)
@@ -81,7 +81,7 @@ class Vector:
             normalized_data = self.data / norm
         else:
             normalized_data = self.data.copy()
-        
+
         return Vector(
             id=self.id,
             data=normalized_data,
@@ -98,17 +98,17 @@ class VectorSchema(BaseModel):
     index_type: IndexType = Field(default=IndexType.HNSW)
     compression: CompressionType = Field(default=CompressionType.LZ4)
     quantization: QuantizationType = Field(default=QuantizationType.NONE)
-    
+
     # Index-specific parameters
     hnsw_ef_construction: int = Field(default=200, gt=0)
     hnsw_m: int = Field(default=16, gt=0)
     ivf_nlist: int = Field(default=1024, gt=0)
-    
+
     # Storage parameters
     max_vectors: Optional[int] = Field(default=None, gt=0)
     enable_metadata_index: bool = Field(default=True)
     metadata_schema: Optional[Dict[str, str]] = Field(default=None)
-    
+
     @validator('dimensions')
     def validate_dimensions(cls, v):
         if v > 10000:
@@ -124,7 +124,7 @@ class SearchResult:
     score: float
     metadata: MetadataDict
     distance: float
-    
+
     def __lt__(self, other: 'SearchResult') -> bool:
         """Enable sorting by score (higher is better)."""
         return self.score > other.score
@@ -138,7 +138,7 @@ class SearchQuery(BaseModel):
     include_vectors: bool = Field(default=False)
     include_metadata: bool = Field(default=True)
     metadata_filter: Optional[Dict[str, Any]] = Field(default=None)
-    
+
     # Search parameters
     ef: Optional[int] = Field(default=None, gt=0)  # HNSW search parameter
     nprobe: Optional[int] = Field(default=None, gt=0)  # IVF search parameter
@@ -149,7 +149,7 @@ class InsertRequest(BaseModel):
     vectors: List[Dict[str, Any]] = Field(..., min_items=1)
     batch_size: int = Field(default=1000, gt=0)
     upsert: bool = Field(default=False)
-    
+
     @validator('vectors')
     def validate_vectors(cls, v):
         for i, vec in enumerate(v):
@@ -171,7 +171,7 @@ class CollectionStats:
     metric: DistanceMetric
     created_at: datetime
     updated_at: datetime
-    
+
     # Performance metrics
     avg_search_latency_ms: float
     cache_hit_ratio: float
@@ -180,32 +180,32 @@ class CollectionStats:
 
 class DatabaseConfig(BaseModel):
     """Configuration for ToucanDB instance."""
-    
+
     class StorageConfig(BaseModel):
         path: str = Field(..., description="Database storage path")
         compression: CompressionType = Field(default=CompressionType.LZ4)
         encryption_key: Optional[str] = Field(default=None)
         backup_interval_seconds: int = Field(default=3600, gt=0)
         max_file_size_mb: int = Field(default=1024, gt=0)
-    
+
     class MemoryConfig(BaseModel):
         cache_size_mb: int = Field(default=512, gt=0)
         enable_memory_mapping: bool = Field(default=True)
         preload_collections: bool = Field(default=False)
         gc_threshold: float = Field(default=0.8, gt=0.0, le=1.0)
-    
+
     class SecurityConfig(BaseModel):
         enable_encryption: bool = Field(default=True)
         enable_audit_logging: bool = Field(default=True)
         api_key_required: bool = Field(default=False)
         max_connections: int = Field(default=100, gt=0)
-    
+
     class PerformanceConfig(BaseModel):
         num_workers: int = Field(default=4, gt=0)
         enable_simd: bool = Field(default=True)
         batch_size: int = Field(default=1000, gt=0)
         auto_optimize_indices: bool = Field(default=True)
-    
+
     storage: StorageConfig
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
@@ -235,7 +235,7 @@ class OperationResult(Generic[T]):
     error_code: Optional[ErrorCode] = None
     error_message: Optional[str] = None
     execution_time_ms: float = 0.0
-    
+
     @classmethod
     def success_result(cls, data: T, execution_time_ms: float = 0.0) -> 'OperationResult[T]':
         """Create a successful operation result."""
@@ -244,11 +244,11 @@ class OperationResult(Generic[T]):
             data=data,
             execution_time_ms=execution_time_ms
         )
-    
+
     @classmethod
     def error_result(
-        cls, 
-        error_code: ErrorCode, 
+        cls,
+        error_code: ErrorCode,
         error_message: str,
         execution_time_ms: float = 0.0
     ) -> 'OperationResult[T]':

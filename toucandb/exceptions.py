@@ -12,10 +12,10 @@ from .types import ErrorCode
 
 class ToucanDBException(Exception):
     """Base exception class for all ToucanDB errors."""
-    
+
     def __init__(
-        self, 
-        message: str, 
+        self,
+        message: str,
         error_code: Optional[ErrorCode] = None,
         details: Optional[Dict[str, Any]] = None
     ):
@@ -23,12 +23,12 @@ class ToucanDBException(Exception):
         self.message = message
         self.error_code = error_code
         self.details = details or {}
-    
+
     def __str__(self) -> str:
         if self.error_code:
             return f"[{self.error_code}] {self.message}"
         return self.message
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert exception to dictionary for serialization."""
         return {
@@ -41,7 +41,7 @@ class ToucanDBException(Exception):
 
 class CollectionNotFoundError(ToucanDBException):
     """Raised when attempting to access a non-existent collection."""
-    
+
     def __init__(self, collection_name: str):
         super().__init__(
             f"Collection '{collection_name}' not found",
@@ -52,7 +52,7 @@ class CollectionNotFoundError(ToucanDBException):
 
 class VectorNotFoundError(ToucanDBException):
     """Raised when attempting to access a non-existent vector."""
-    
+
     def __init__(self, vector_id: str, collection_name: str):
         super().__init__(
             f"Vector '{vector_id}' not found in collection '{collection_name}'",
@@ -63,12 +63,12 @@ class VectorNotFoundError(ToucanDBException):
 
 class DimensionMismatchError(ToucanDBException):
     """Raised when vector dimensions don't match the schema."""
-    
+
     def __init__(self, expected: int, actual: int, vector_id: Optional[str] = None):
         message = f"Dimension mismatch: expected {expected}, got {actual}"
         if vector_id:
             message += f" for vector '{vector_id}'"
-        
+
         super().__init__(
             message,
             ErrorCode.DIMENSION_MISMATCH,
@@ -78,7 +78,7 @@ class DimensionMismatchError(ToucanDBException):
 
 class InvalidSchemaError(ToucanDBException):
     """Raised when a schema is invalid or incompatible."""
-    
+
     def __init__(self, reason: str, schema_details: Optional[Dict[str, Any]] = None):
         super().__init__(
             f"Invalid schema: {reason}",
@@ -89,7 +89,7 @@ class InvalidSchemaError(ToucanDBException):
 
 class EncryptionError(ToucanDBException):
     """Raised when encryption/decryption operations fail."""
-    
+
     def __init__(self, operation: str, reason: str):
         super().__init__(
             f"Encryption error during {operation}: {reason}",
@@ -100,7 +100,7 @@ class EncryptionError(ToucanDBException):
 
 class StorageError(ToucanDBException):
     """Raised when storage operations fail."""
-    
+
     def __init__(self, operation: str, path: str, reason: str):
         super().__init__(
             f"Storage error during {operation} at '{path}': {reason}",
@@ -111,7 +111,7 @@ class StorageError(ToucanDBException):
 
 class IndexError(ToucanDBException):
     """Raised when index operations fail."""
-    
+
     def __init__(self, operation: str, index_type: str, reason: str):
         super().__init__(
             f"Index error during {operation} with {index_type}: {reason}",
@@ -122,7 +122,7 @@ class IndexError(ToucanDBException):
 
 class MemoryError(ToucanDBException):
     """Raised when memory-related operations fail."""
-    
+
     def __init__(self, operation: str, reason: str, memory_usage: Optional[int] = None):
         super().__init__(
             f"Memory error during {operation}: {reason}",
@@ -133,12 +133,12 @@ class MemoryError(ToucanDBException):
 
 class PermissionDeniedError(ToucanDBException):
     """Raised when access is denied due to insufficient permissions."""
-    
+
     def __init__(self, operation: str, resource: str, user_id: Optional[str] = None):
         message = f"Permission denied for {operation} on '{resource}'"
         if user_id:
             message += f" by user '{user_id}'"
-        
+
         super().__init__(
             message,
             ErrorCode.PERMISSION_DENIED,
@@ -148,7 +148,7 @@ class PermissionDeniedError(ToucanDBException):
 
 class RateLimitExceededError(ToucanDBException):
     """Raised when rate limits are exceeded."""
-    
+
     def __init__(self, operation: str, limit: int, window_seconds: int):
         super().__init__(
             f"Rate limit exceeded for {operation}: {limit} requests per {window_seconds} seconds",
@@ -159,7 +159,7 @@ class RateLimitExceededError(ToucanDBException):
 
 class ConfigurationError(ToucanDBException):
     """Raised when configuration is invalid."""
-    
+
     def __init__(self, parameter: str, value: Any, reason: str):
         super().__init__(
             f"Invalid configuration for '{parameter}' = {value}: {reason}",
@@ -169,7 +169,7 @@ class ConfigurationError(ToucanDBException):
 
 class DatabaseCorruptionError(ToucanDBException):
     """Raised when database corruption is detected."""
-    
+
     def __init__(self, component: str, details: str):
         super().__init__(
             f"Database corruption detected in {component}: {details}",
@@ -180,7 +180,7 @@ class DatabaseCorruptionError(ToucanDBException):
 
 class ConnectionError(ToucanDBException):
     """Raised when database connection fails."""
-    
+
     def __init__(self, reason: str, retry_count: int = 0):
         super().__init__(
             f"Connection failed: {reason} (retries: {retry_count})",
@@ -190,11 +190,11 @@ class ConnectionError(ToucanDBException):
 
 class BatchOperationError(ToucanDBException):
     """Raised when batch operations fail."""
-    
+
     def __init__(
-        self, 
-        operation_type: str, 
-        failed_items: int, 
+        self,
+        operation_type: str,
+        failed_items: int,
         total_items: int,
         errors: Optional[list] = None
     ):
@@ -211,7 +211,7 @@ class BatchOperationError(ToucanDBException):
 
 class QueryTimeoutError(ToucanDBException):
     """Raised when queries exceed timeout limits."""
-    
+
     def __init__(self, timeout_seconds: float, query_type: str):
         super().__init__(
             f"Query timeout after {timeout_seconds}s for {query_type}",
@@ -221,7 +221,7 @@ class QueryTimeoutError(ToucanDBException):
 
 class ResourceExhaustedError(ToucanDBException):
     """Raised when system resources are exhausted."""
-    
+
     def __init__(self, resource_type: str, current_usage: str, limit: str):
         super().__init__(
             f"{resource_type} exhausted: {current_usage} exceeds limit of {limit}",
@@ -235,7 +235,7 @@ class ResourceExhaustedError(ToucanDBException):
 
 class ValidationError(ToucanDBException):
     """Raised when data validation fails."""
-    
+
     def __init__(self, field: str, value: Any, constraint: str):
         super().__init__(
             f"Validation failed for field '{field}': {constraint}",
