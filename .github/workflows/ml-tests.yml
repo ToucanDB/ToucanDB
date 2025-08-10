@@ -71,8 +71,8 @@ jobs:
             query = query / np.linalg.norm(query)
             search_query = SearchQuery(vector=query.tolist(), k=3)
             results = await collection.search(search_query)
-            assert len(results) > 0, 'Search returned no results'
-            assert all(r.score >= 0 for r in results), 'Invalid similarity scores'
+            assert len(results.data) > 0, 'Search returned no results'
+            assert all(r.score >= 0 for r in results.data), 'Invalid similarity scores'
 
             await db.close()
             print('✅ Basic ML functionality test passed')
@@ -112,7 +112,7 @@ jobs:
                     query = query / np.linalg.norm(query)
                 search_query = SearchQuery(vector=query.tolist(), k=5)
                 results = await collection.search(search_query)
-                assert len(results) > 0, f'No results for {metric.value}'
+                assert len(results.data) > 0, f'No results for {metric.value}'
                 await db.close()
 
             print('✅ Comprehensive ML tests passed')
@@ -222,9 +222,9 @@ jobs:
                 search_query = SearchQuery(vector=query_embedding[0].tolist(), k=3)
                 results = await collection.search(search_query)
 
-                assert len(results) > 0, 'No results from real model test'
-                print(f'Real model test: Found {len(results)} similar sentences')
-                for i, result in enumerate(results[:2]):
+                assert len(results.data) > 0, 'No results from real model test'
+                print(f'Real model test: Found {len(results.data)} similar sentences')
+                for i, result in enumerate(results.data[:2]):
                     print(f'  {i+1}. {result.metadata[\"text\"]} (score: {result.score:.3f})')
 
                 await db.close()

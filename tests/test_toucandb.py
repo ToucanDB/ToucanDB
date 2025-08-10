@@ -67,7 +67,7 @@ class TestToucanDB:
         assert temp_db is not None
 
         info = temp_db.get_database_info()
-        assert info["version"] == "0.1.0"
+        assert info["version"] == "1.0.0"
         assert info["total_collections"] == 0
         assert info["total_vectors"] == 0
 

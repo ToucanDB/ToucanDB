@@ -6,22 +6,30 @@ create, manage, and query vector collections with state-of-the-art performance
 and security features.
 """
 
-import os
 import asyncio
 import logging
-from typing import Dict, List, Optional, Union, Any
-from pathlib import Path
+import os
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
-from .types import (
-    VectorSchema, SearchQuery, InsertRequest, DatabaseConfig,
-    OperationResult, CollectionStats, ErrorCode
-)
 from .exceptions import (
-    ToucanDBException, CollectionNotFoundError, InvalidSchemaError,
-    StorageError, ConfigurationError
+    CollectionNotFoundError,
+    ConfigurationError,
+    InvalidSchemaError,
+    StorageError,
+    ToucanDBException,
 )
 from .schema import SchemaManager
+from .types import (
+    CollectionStats,
+    DatabaseConfig,
+    ErrorCode,
+    InsertRequest,
+    OperationResult,
+    SearchQuery,
+    VectorSchema,
+)
 from .vector_engine import VectorCollection
 
 # Set up logging
@@ -47,7 +55,7 @@ __all__ = [
     "QuantizationType",
     "ToucanDBException",
     "CollectionNotFoundError",
-    "InvalidSchemaError"
+    "InvalidSchemaError",
 ]
 
 
@@ -59,7 +67,9 @@ class ToucanDB:
     with built-in security, compression, and performance optimizations.
     """
 
-    def __init__(self, storage_path: Union[str, Path], config: Optional[DatabaseConfig] = None):
+    def __init__(
+        self, storage_path: Union[str, Path], config: Optional[DatabaseConfig] = None
+    ):
         """
         Initialize ToucanDB instance.
 
@@ -75,7 +85,7 @@ class ToucanDB:
 
         # Initialize components
         self.schema_manager = SchemaManager(self.storage_path)
-        self.collections: Dict[str, VectorCollection] = {}
+        self.collections: dict[str, VectorCollection] = {}
 
         # Database metadata
         self.created_at = datetime.utcnow()
@@ -91,8 +101,8 @@ class ToucanDB:
         cls,
         storage_path: Union[str, Path],
         config: Optional[DatabaseConfig] = None,
-        encryption_key: Optional[str] = None
-    ) -> 'ToucanDB':
+        encryption_key: Optional[str] = None,
+    ) -> "ToucanDB":
         """
         Create a new ToucanDB instance asynchronously.
 
@@ -137,7 +147,7 @@ class ToucanDB:
                         name=collection_name,
                         schema=schema,
                         storage_path=self.storage_path,
-                        encryption_key=self.config.storage.encryption_key
+                        encryption_key=self.config.storage.encryption_key,
                     )
                     self.collections[collection_name] = collection
                     logger.info(f"Loaded collection: {collection_name}")
@@ -145,9 +155,7 @@ class ToucanDB:
                     logger.error(f"Failed to load collection {collection_name}: {e}")
 
     async def create_collection(
-        self,
-        schema: VectorSchema,
-        overwrite: bool = False
+        self, schema: VectorSchema, overwrite: bool = False
     ) -> VectorCollection:
         """
         Create a new vector collection.
@@ -165,16 +173,14 @@ class ToucanDB:
         """
         try:
             # Create schema
-            schema_version = self.schema_manager.create_schema(
-                schema.name, schema, overwrite
-            )
+            self.schema_manager.create_schema(schema.name, schema, overwrite)
 
             # Create collection
             collection = VectorCollection(
                 name=schema.name,
                 schema=schema,
                 storage_path=self.storage_path,
-                encryption_key=self.config.storage.encryption_key
+                encryption_key=self.config.storage.encryption_key,
             )
 
             self.collections[schema.name] = collection
@@ -204,7 +210,7 @@ class ToucanDB:
 
         return self.collections[name]
 
-    def list_collections(self) -> List[str]:
+    def list_collections(self) -> list[str]:
         """
         List all collections in the database.
 
@@ -244,9 +250,9 @@ class ToucanDB:
     async def insert_vectors(
         self,
         collection_name: str,
-        vectors: List[Dict[str, Any]],
-        batch_size: int = 1000
-    ) -> OperationResult[List[str]]:
+        vectors: list[dict[str, Any]],
+        batch_size: int = 1000,
+    ) -> OperationResult[list[str]]:
         """
         Insert vectors into a collection.
 
@@ -265,7 +271,7 @@ class ToucanDB:
         total_time = 0.0
 
         for i in range(0, len(vectors), batch_size):
-            batch = vectors[i:i + batch_size]
+            batch = vectors[i : i + batch_size]
             result = await collection.insert(batch)
 
             if not result.success:
@@ -277,10 +283,8 @@ class ToucanDB:
         return OperationResult.success_result(all_ids, total_time)
 
     async def search_vectors(
-        self,
-        collection_name: str,
-        query: SearchQuery
-    ) -> OperationResult[List[Dict[str, Any]]]:
+        self, collection_name: str, query: SearchQuery
+    ) -> OperationResult[list[dict[str, Any]]]:
         """
         Search for similar vectors in a collection.
 
@@ -298,28 +302,26 @@ class ToucanDB:
             # Convert SearchResult objects to dictionaries
             search_results = []
             for sr in result.data:
-                result_dict = {
-                    "id": sr.id,
-                    "score": sr.score,
-                    "distance": sr.distance
-                }
+                result_dict = {"id": sr.id, "score": sr.score, "distance": sr.distance}
 
                 if query.include_metadata:
                     result_dict["metadata"] = sr.metadata
 
                 if query.include_vectors:
-                    result_dict["vector"] = sr.vector.tolist() if sr.vector is not None else None
+                    result_dict["vector"] = (
+                        sr.vector.tolist() if sr.vector is not None else None
+                    )
 
                 search_results.append(result_dict)
 
-            return OperationResult.success_result(search_results, result.execution_time_ms)
+            return OperationResult.success_result(
+                search_results, result.execution_time_ms
+            )
 
         return result
 
     async def delete_vector(
-        self,
-        collection_name: str,
-        vector_id: str
+        self, collection_name: str, vector_id: str
     ) -> OperationResult[bool]:
         """
         Delete a vector from a collection.
@@ -347,7 +349,7 @@ class ToucanDB:
         collection = self.get_collection(collection_name)
         return collection.get_stats()
 
-    def get_database_info(self) -> Dict[str, Any]:
+    def get_database_info(self) -> dict[str, Any]:
         """
         Get comprehensive database information.
 
@@ -365,7 +367,7 @@ class ToucanDB:
                 "size_bytes": stats.size_bytes,
                 "dimensions": stats.dimensions,
                 "index_type": stats.index_type,
-                "metric": stats.metric
+                "metric": stats.metric,
             }
             total_vectors += stats.total_vectors
             total_size += stats.size_bytes
@@ -378,7 +380,7 @@ class ToucanDB:
             "total_vectors": total_vectors,
             "total_size_bytes": total_size,
             "config": self.config.dict(),
-            "collections": collection_info
+            "collections": collection_info,
         }
 
     async def backup(self, backup_path: Union[str, Path]) -> bool:
@@ -416,7 +418,7 @@ class ToucanDB:
         logger.info("Closing ToucanDB...")
 
         # Close collections
-        for collection in self.collections.values():
+        for _collection in self.collections.values():
             # TODO: Implement collection cleanup
             pass
 
@@ -434,8 +436,7 @@ class ToucanDB:
 
 # Convenience functions
 async def create_database(
-    storage_path: Union[str, Path],
-    encryption_key: Optional[str] = None
+    storage_path: Union[str, Path], encryption_key: Optional[str] = None
 ) -> ToucanDB:
     """
     Create a new ToucanDB database.
@@ -455,7 +456,7 @@ def create_schema(
     dimensions: int,
     metric: str = "cosine",
     index_type: str = "hnsw",
-    **kwargs
+    **kwargs,
 ) -> VectorSchema:
     """
     Create a vector schema with sensible defaults.
@@ -477,5 +478,5 @@ def create_schema(
         dimensions=dimensions,
         metric=DistanceMetric(metric),
         index_type=IndexType(index_type),
-        **kwargs
+        **kwargs,
     )
