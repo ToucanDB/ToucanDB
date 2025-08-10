@@ -1,0 +1,44 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "ToucanDB"
+abstract: "ToucanDB - ML-first vector database for AI applications, LLM integration, and semantic search of unstructured data"
+authors:
+  - family-names: "Soria"
+    given-names: "Pierre-Henry"
+    email: "pierre@ph7.me"
+version: "1.0.0"
+date-released: 2025-08-10
+url: "https://github.com/ToucanDB/ToucanDB"
+repository-code: "https://github.com/ToucanDB/ToucanDB"
+license: MIT
+keywords:
+  - "vector-database"
+  - "ml"
+  - "ai"
+  - "machine-learning"
+  - "embeddings"
+  - "similarity-search"
+  - "vector-database-engine"
+  - "vector-search"
+  - "database"
+  - "unstructured-data"
+  - "rag"
+  - "llm"
+  - "semantic-search"
+  - "nosql"
+  - "artificial-intelligence"
+  - "python"
+  - "asyncio"
+  - "vector-embeddings"
+preferred-citation:
+  type: software
+  authors:
+    - family-names: "Soria"
+      given-names: "Pierre-Henry"
+      email: "pierre@ph7.me"
+  title: "ToucanDB: ML-first Vector Database Engine"
+  version: "1.0.0"
+  year: 2025
+  url: "https://github.com/ToucanDB/ToucanDB"
+  abstract: "A micro ML-first vectorial database engine designed for transforming unstructured data into intelligent vector embeddings, built specifically for AI-powered search and LLM integration applications."
