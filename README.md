@@ -328,7 +328,7 @@ asyncio.run(advanced_rag_system())
 
 ## 🤝 Embedding Model Integration
 
-ToucanDB works seamlessly with all major embedding models and frameworks:
+**ToucanDB** works well with all major embedding models and frameworks:
 
 ### 🔗 **Supported Embedding Models**
 
@@ -694,7 +694,7 @@ security_config = {
 - **Duplicate Detection**: Identify similar or duplicate content across large document collections
 - **Content Moderation**: Detect inappropriate content by comparing against known problematic material
 
-### � **Advanced Search & Discovery**
+### 🔎 **Advanced Search & Discovery**
 #### Multi-Modal Search
 - **Visual Search**: Find similar images, videos, or documents using visual embeddings
 - **Audio Search**: Search through podcasts, voice recordings, and audio content for specific topics
