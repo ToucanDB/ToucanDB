@@ -829,8 +829,10 @@ Just as toucans navigate complex forest ecosystems with ease, ToucanDB navigates
 ## 👨‍💻 Who Built This Vector Database Engine?
 
 **Pierre-Henry Soria** — a **super passionate engineer** who loves building cutting-edge AI infrastructure and automating intelligent systems efficiently!
-Enthusiast of Machine Learning, Vector Databases, AI, and—of course—writing performant code!
-Find me at [pH7.me](https://ph7.me)
+
+Enthusiast of Machine Learning, Vector Databases, AI, and writing performant code!
+
+**Find me at [pH7.me](https://ph7.me)**
 
 Enjoying this project? **[Buy me a coffee](https://ko-fi.com/phenry)** (spoiler: I love almond extra-hot flat white coffees while coding ML algorithms).
 
