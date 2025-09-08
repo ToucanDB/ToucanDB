@@ -808,9 +808,9 @@ ToucanDB provides comprehensive security for production deployments:
 - **HIPAA Compatible**: Healthcare data protection
 - **ISO 27001**: Information security management
 
-## 🦜 Why "ToucanDB"?
+## 🦜 Why "ToucanDB"? Exploration is everywhere
 
-Just like the vibrant toucan bird, ToucanDB embodies the perfect combination of **precision, adaptability, and intelligence** that makes it exceptional for ML applications.
+Just like the vibrant toucan bird, ToucanDB embodies the perfect combination of **precision, adaptability, and intelligence** that makes it exceptional for ML applications. Birds are my favorite animals and toucans are one of my favorite birds! I've always been inspired by toucans. My grand-father was an ethnologist and explorer in the Amazonia’s rainforest. He also discovered the **Jora tribe**, my grand-parents even did their honeymoon in the rainforest of Amazonia, and lived in various countries in Latin America for quite sometime with my grand-mother and my mom. His life deeply inspired me since I was little, and my love for toucans are part of this beautiful legacy. Nature has always played a huge positive part of my success.
 
 ![Why it's called ToucanDB](assets/why-its-called-toucandb.jpeg "The inspiration behind ToucanDB - Pierre-Henry with toucans, showing the precision and adaptability that inspired the database")
 
