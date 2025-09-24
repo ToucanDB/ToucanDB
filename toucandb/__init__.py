@@ -28,6 +28,7 @@ from .types import (
     InsertRequest,
     OperationResult,
     SearchQuery,
+    Vector,
     VectorSchema,
 )
 from .vector_engine import VectorCollection
@@ -424,6 +425,78 @@ class ToucanDB:
 
         self.collections.clear()
         logger.info("ToucanDB closed successfully")
+
+    # ML-first vector database methods
+    def set_embedding_provider(self, provider) -> None:
+        """Set the embedding provider for ML-first operations."""
+        try:
+            from .ml import EmbeddingProvider
+            if not hasattr(provider, "embed") or not callable(provider.embed):
+                raise ValueError("Provider must implement the EmbeddingProvider protocol")
+            self._embedding_provider = provider
+            logger.info("Embedding provider set successfully")
+        except ImportError:
+            logger.warning("ML module not available")
+            raise ValueError("ML features not available")
+
+    @property
+    def is_ml_ready(self) -> bool:
+        """Check if the database is ready for ML operations."""
+        try:
+            from . import ml
+            return hasattr(self, "_embedding_provider") and self._embedding_provider is not None
+        except ImportError:
+            return False
+
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        """Generate embeddings for multiple texts."""
+        if not hasattr(self, "_embedding_provider") or self._embedding_provider is None:
+            raise ValueError("No embedding provider configured. Use set_embedding_provider() first.")
+        return await self._embedding_provider.embed(texts)
+
+    async def embed_query(self, query: str) -> list[float]:
+        """Generate embedding for a single query text."""
+        embeddings = await self.embed_texts([query])
+        return embeddings[0]
+
+    async def insert_documents(
+        self, 
+        collection_name: str, 
+        documents: list[str], 
+        metadata: Optional[list[dict]] = None,
+        ids: Optional[list[str]] = None
+    ) -> list[str]:
+        """Insert documents with automatic embedding generation."""
+        embeddings = await self.embed_texts(documents)
+        vectors = []
+        for i, embedding in enumerate(embeddings):
+            vector_id = ids[i] if ids and i < len(ids) else None
+            vector_metadata = metadata[i] if metadata and i < len(metadata) else {}
+            vector_metadata["document"] = documents[i]
+            vector = Vector(id=vector_id, data=embedding, metadata=vector_metadata)
+            vectors.append(vector)
+        return await self.insert_vectors(collection_name, vectors)
+
+    async def semantic_search(
+        self, 
+        collection_name: str, 
+        query: str, 
+        k: int = 10,
+        filter_metadata: Optional[dict] = None
+    ) -> list[dict]:
+        """Perform semantic search using query embedding."""
+        query_embedding = await self.embed_query(query)
+        results = await self.search_vectors(collection_name, query_embedding, k, filter_metadata)
+        formatted_results = []
+        for result in results:
+            formatted_result = {
+                "id": result.id,
+                "score": result.score,
+                "document": result.metadata.get("document", ""),
+                "metadata": {k: v for k, v in result.metadata.items() if k != "document"}
+            }
+            formatted_results.append(formatted_result)
+        return formatted_results
 
     async def __aenter__(self):
         """Async context manager entry."""

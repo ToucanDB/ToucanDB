@@ -1,0 +1,32 @@
+# MANIFEST.in - Specifies which files to include in the package distribution
+
+# Include essential documentation
+include README.md
+include LICENSE
+include CONTRIBUTING.md
+include *.cff
+
+# Include assets (logos, images)
+recursive-include assets *.png *.jpg *.jpeg *.svg
+
+# Include configuration files
+include pyproject.toml
+
+# Include examples
+recursive-include examples *.py
+
+# Include tests
+recursive-include tests *.py
+
+# Include GitHub workflows
+recursive-include .github *.yml *.yaml
+
+# Include scripts
+recursive-include scripts *.py *.md
+
+# Exclude development files
+exclude analyze_toucandb.py
+exclude PUBLISHING.md
+exclude UNSTRUCTURED_DATA_ANALYSIS.md
+exclude test_*.py
+exclude quick_validation.py
