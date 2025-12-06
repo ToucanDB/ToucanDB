@@ -328,7 +328,7 @@ asyncio.run(advanced_rag_system())
 
 ## 🤝 Embedding Model Integration
 
-ToucanDB works seamlessly with all major embedding models and frameworks:
+**ToucanDB** works well with all major embedding models and frameworks:
 
 ### 🔗 **Supported Embedding Models**
 
@@ -694,7 +694,7 @@ security_config = {
 - **Duplicate Detection**: Identify similar or duplicate content across large document collections
 - **Content Moderation**: Detect inappropriate content by comparing against known problematic material
 
-### � **Advanced Search & Discovery**
+### 🔎 **Advanced Search & Discovery**
 #### Multi-Modal Search
 - **Visual Search**: Find similar images, videos, or documents using visual embeddings
 - **Audio Search**: Search through podcasts, voice recordings, and audio content for specific topics
@@ -838,8 +838,7 @@ Enjoying this project? **[Buy me a coffee](https://ko-fi.com/phenry)** (spoiler:
 
 [![Pierre-Henry Soria](https://s.gravatar.com/avatar/a210fe61253c43c869d71eaed0e90149?s=200)](https://ph7.me "Pierre-Henry Soria's personal website")
 
-[![YouTube Tech Videos][yt-icon]](https://www.youtube.com/@pH7Programming "My YouTube Tech Channel") [![@phenrysay][x-icon]](https://x.com/phenrysay "Follow Me on X") [![BlueSky][bsky-icon]](https://bsky.app/profile/ph7s.bsky.social "Follow Me on BlueSky") [![pH-7][github-icon]](https://github.com/pH-7 "Follow Me on GitHub")
-
+[![@phenrysay][x-icon]](https://x.com/phenrysay "Follow Me on X") [![YouTube Tech Videos][youtube-icon]](https://www.youtube.com/@pH7Programming "My YouTube Tech Channel") [![pH-7][github-icon]](https://github.com/pH-7 "Follow Me on GitHub") [![BlueSky][bsky-icon]](https://bsky.app/profile/pierrehenry.dev "Follow Me on BlueSky")
 
 ## 🤝 Contributing
 
