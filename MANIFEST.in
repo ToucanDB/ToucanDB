@@ -2,7 +2,7 @@
 
 # Include essential documentation
 include README.md
-include LICENSE
+include LICENSE.md
 include CONTRIBUTING.md
 include *.cff
 
