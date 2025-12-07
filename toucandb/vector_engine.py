@@ -14,13 +14,15 @@ from pathlib import Path
 from typing import Any, Optional
 
 try:
-    import faiss
-    import lz4.frame
-    import msgpack
+    import faiss  # type: ignore[import-not-found]
+    import lz4.frame  # type: ignore[import-not-found]
+    import msgpack  # type: ignore[import-not-found]
     import numpy as np
-    from cryptography.fernet import Fernet
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    from cryptography.fernet import Fernet  # type: ignore[import-not-found]
+    from cryptography.hazmat.primitives import hashes  # type: ignore[import-not-found]
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import (
+        PBKDF2HMAC,  # type: ignore[import-not-found]
+    )
 except ImportError:
     # These imports will be available after installing dependencies
     pass
@@ -119,6 +121,10 @@ class VectorIndex:
                 norms = np.linalg.norm(vector_data, axis=1, keepdims=True)
                 vector_data = vector_data / np.maximum(norms, 1e-12)
 
+            # Check index is initialized
+            if self.index is None:
+                raise StorageError("index", "initialization", "Index not initialized")
+
             # Train index if needed
             if not self.index.is_trained:
                 self.index.train(vector_data)
@@ -151,11 +157,11 @@ class VectorIndex:
     def search(self, query: SearchQuery) -> list[SearchResult]:
         """Search for similar vectors."""
         with self._lock:
-            if self.index.ntotal == 0:
+            if self.index is None or self.index.ntotal == 0:
                 return []
 
             # Prepare query vector
-            query_vector = np.array([query.vector], dtype=np.float32)
+            query_vector = np.array(query.vector, dtype=np.float32).reshape(1, -1)
 
             if self.schema.metric == DistanceMetric.COSINE:
                 norm = np.linalg.norm(query_vector)
@@ -226,6 +232,15 @@ class VectorIndex:
     def get_stats(self) -> dict[str, Any]:
         """Get index statistics."""
         with self._lock:
+            if self.index is None:
+                return {
+                    "total_vectors": 0,
+                    "index_type": self.schema.index_type,
+                    "metric": self.schema.metric,
+                    "dimensions": self.schema.dimensions,
+                    "memory_usage_bytes": 0,
+                    "is_trained": False,
+                }
             return {
                 "total_vectors": self.index.ntotal,
                 "index_type": self.schema.index_type,
@@ -267,22 +282,27 @@ class CompressionEngine:
 
     @staticmethod
     def quantize_vector(
-        vector: np.ndarray, quantization: QuantizationType
-    ) -> np.ndarray:
+        vector: "np.ndarray[Any, Any]", quantization: QuantizationType
+    ) -> "np.ndarray[Any, Any]":
         """Quantize vector to reduce memory usage."""
         if quantization == QuantizationType.NONE:
-            return vector.astype(np.float32)
+            result: np.ndarray[Any, Any] = vector.astype(np.float32)
+            return result
         elif quantization == QuantizationType.FP16:
-            return vector.astype(np.float16)
+            result = vector.astype(np.float16)
+            return result
         elif quantization == QuantizationType.INT8:
             # Simple quantization to int8
             min_val, max_val = vector.min(), vector.max()
             if max_val > min_val:
                 scale = 127.0 / (max_val - min_val)
-                quantized = ((vector - min_val) * scale).astype(np.int8)
+                quantized: np.ndarray[Any, Any] = ((vector - min_val) * scale).astype(
+                    np.int8
+                )
                 return quantized
             else:
-                return np.zeros_like(vector, dtype=np.int8)
+                result = np.zeros_like(vector, dtype=np.int8)
+                return result
         else:
             raise ValidationError(
                 "quantization", quantization, "Unsupported quantization type"
@@ -499,7 +519,7 @@ class VectorStorage:
 
     def list_vectors(self) -> list[VectorId]:
         """List all stored vector IDs."""
-        vector_ids = []
+        vector_ids: list[VectorId] = []
         for vector_file in self.vectors_path.glob("*.vec"):
             vector_ids.append(vector_file.stem)
         return vector_ids

@@ -256,10 +256,10 @@ class ValidationError(ToucanDBException):
 
 
 # Utility functions for exception handling
-def handle_exception(func):
+def handle_exception(func: Any) -> Any:
     """Decorator to handle and convert common exceptions to ToucanDB exceptions."""
 
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         try:
             return func(*args, **kwargs)
         except FileNotFoundError as e:

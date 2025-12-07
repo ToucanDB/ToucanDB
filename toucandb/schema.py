@@ -10,7 +10,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from .exceptions import InvalidSchemaError, StorageError, ValidationError
 from .types import (
@@ -201,7 +201,7 @@ class SchemaManager:
 
     def _check_type(self, value: Any, expected_type: str) -> bool:
         """Check if a value matches the expected type."""
-        type_map = {
+        type_map: dict[str, Union[type, tuple[type, ...]]] = {
             "string": str,
             "integer": int,
             "float": (int, float),
@@ -326,7 +326,10 @@ class SchemaManager:
 
     def export_schemas(self, output_path: Path) -> None:
         """Export all schemas to a single file."""
-        export_data = {"export_timestamp": datetime.utcnow().isoformat(), "schemas": {}}
+        export_data: dict[str, Any] = {
+            "export_timestamp": datetime.utcnow().isoformat(),
+            "schemas": {},
+        }
 
         for collection_name, schema_version in self._schema_cache.items():
             export_data["schemas"][collection_name] = {

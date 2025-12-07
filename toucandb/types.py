@@ -14,7 +14,7 @@ import numpy as np
 from pydantic import BaseModel, Field, validator
 
 # Type aliases for clarity
-VectorData = Union[list[float], np.ndarray]
+VectorData = Union[list[float], "np.ndarray[Any, Any]"]
 MetadataDict = dict[str, Any]
 VectorId = Union[str, int]
 
@@ -65,14 +65,14 @@ class Vector:
     """Represents a single vector with metadata."""
 
     id: VectorId
-    data: np.ndarray
+    data: "np.ndarray[Any, Any]"
     metadata: MetadataDict
     timestamp: datetime
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Ensure vector data is a numpy array."""
         if not isinstance(self.data, np.ndarray):
-            self.data = np.array(self.data, dtype=np.float32)
+            object.__setattr__(self, "data", np.array(self.data, dtype=np.float32))
 
     @property
     def dimensions(self) -> int:
@@ -116,7 +116,7 @@ class VectorSchema(BaseModel):
     metadata_schema: Optional[dict[str, str]] = Field(default=None)
 
     @validator("dimensions")
-    def validate_dimensions(cls, v):
+    def validate_dimensions(cls, v: int) -> int:
         if v > 10000:
             raise ValueError("Dimensions cannot exceed 10,000")
         return v
@@ -140,7 +140,9 @@ class SearchResult:
 class SearchQuery(BaseModel):
     """Query specification for vector search."""
 
-    vector: list[float] = Field(..., description="Query vector")
+    vector: Union[list[float], np.ndarray[Any, Any]] = Field(
+        ..., description="Query vector"
+    )
     k: int = Field(default=10, gt=0, le=1000, description="Number of results")
     threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     include_vectors: bool = Field(default=False)
@@ -155,12 +157,12 @@ class SearchQuery(BaseModel):
 class InsertRequest(BaseModel):
     """Request to insert vectors into a collection."""
 
-    vectors: list[dict[str, Any]] = Field(..., min_items=1)
+    vectors: list[dict[str, Any]] = Field(..., min_length=1)
     batch_size: int = Field(default=1000, gt=0)
     upsert: bool = Field(default=False)
 
     @validator("vectors")
-    def validate_vectors(cls, v):
+    def validate_vectors(cls, v: list[dict[str, Any]]) -> list[dict[str, Any]]:
         for i, vec in enumerate(v):
             if "id" not in vec:
                 raise ValueError(f"Vector {i} missing required field 'id'")

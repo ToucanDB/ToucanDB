@@ -26,7 +26,7 @@ from .types import (
     InsertRequest,
     OperationResult,
     SearchQuery,
-    Vector,
+    VectorId,
     VectorSchema,
 )
 from .vector_engine import VectorCollection
@@ -90,7 +90,7 @@ class ToucanDB:
 
         # Database metadata
         self.created_at = datetime.utcnow()
-        self.last_backup = None
+        self.last_backup: Optional[datetime] = None
 
         # Load existing collections
         self._load_collections()
@@ -268,7 +268,7 @@ class ToucanDB:
         collection = self.get_collection(collection_name)
 
         # Process in batches for large datasets
-        all_ids = []
+        all_ids: list[VectorId] = []
         total_time = 0.0
 
         for i in range(0, len(vectors), batch_size):
@@ -276,9 +276,14 @@ class ToucanDB:
             result = await collection.insert(batch)
 
             if not result.success:
-                return result
+                return OperationResult.error_result(
+                    result.error_code or ErrorCode.STORAGE_ERROR,
+                    result.error_message or "Insert failed",
+                    total_time,
+                )
 
-            all_ids.extend(result.data)
+            if result.data:
+                all_ids.extend(result.data)
             total_time += result.execution_time_ms
 
         return OperationResult.success_result(all_ids, total_time)
@@ -299,9 +304,9 @@ class ToucanDB:
         collection = self.get_collection(collection_name)
         result = await collection.search(query)
 
-        if result.success:
+        if result.success and result.data:
             # Convert SearchResult objects to dictionaries
-            search_results = []
+            search_results: list[dict[str, Any]] = []
             for sr in result.data:
                 result_dict = {"id": sr.id, "score": sr.score, "distance": sr.distance}
 
@@ -427,7 +432,7 @@ class ToucanDB:
         logger.info("ToucanDB closed successfully")
 
     # ML-first vector database methods
-    def set_embedding_provider(self, provider) -> None:
+    def set_embedding_provider(self, provider: Any) -> None:
         """Set the embedding provider for ML-first operations."""
         try:
             # Check if ML module is available
@@ -462,7 +467,8 @@ class ToucanDB:
             raise ValueError(
                 "No embedding provider configured. Use set_embedding_provider() first."
             )
-        return await self._embedding_provider.embed(texts)
+        embeddings: list[list[float]] = await self._embedding_provider.embed(texts)
+        return embeddings
 
     async def embed_query(self, query: str) -> list[float]:
         """Generate embedding for a single query text."""
@@ -473,18 +479,19 @@ class ToucanDB:
         self,
         collection_name: str,
         documents: list[str],
-        metadata: Optional[list[dict]] = None,
+        metadata: Optional[list[dict[str, Any]]] = None,
         ids: Optional[list[str]] = None,
-    ) -> list[str]:
+    ) -> OperationResult[list[VectorId]]:
         """Insert documents with automatic embedding generation."""
         embeddings = await self.embed_texts(documents)
-        vectors = []
+        vectors: list[dict[str, Any]] = []
         for i, embedding in enumerate(embeddings):
-            vector_id = ids[i] if ids and i < len(ids) else None
+            vector_id = ids[i] if ids and i < len(ids) else f"doc_{i}"
             vector_metadata = metadata[i] if metadata and i < len(metadata) else {}
             vector_metadata["document"] = documents[i]
-            vector = Vector(id=vector_id, data=embedding, metadata=vector_metadata)
-            vectors.append(vector)
+            vectors.append(
+                {"id": vector_id, "vector": embedding, "metadata": vector_metadata}
+            )
         return await self.insert_vectors(collection_name, vectors)
 
     async def semantic_search(
@@ -492,31 +499,45 @@ class ToucanDB:
         collection_name: str,
         query: str,
         k: int = 10,
-        filter_metadata: Optional[dict] = None,
-    ) -> list[dict]:
+        filter_metadata: Optional[dict[str, Any]] = None,
+    ) -> list[dict[str, Any]]:
         """Perform semantic search using query embedding."""
         query_embedding = await self.embed_query(query)
-        results = await self.search_vectors(
-            collection_name, query_embedding, k, filter_metadata
+        search_query = SearchQuery(
+            vector=query_embedding,
+            k=k,
+            metadata_filter=filter_metadata,
+            include_metadata=True,
         )
-        formatted_results = []
-        for result in results:
-            formatted_result = {
-                "id": result.id,
-                "score": result.score,
-                "document": result.metadata.get("document", ""),
-                "metadata": {
-                    k: v for k, v in result.metadata.items() if k != "document"
-                },
+        result = await self.search_vectors(collection_name, search_query)
+
+        if not result.success or not result.data:
+            return []
+
+        formatted_results: list[dict[str, Any]] = []
+        for item in result.data:
+            item_dict = item if isinstance(item, dict) else item.__dict__
+            metadata = item_dict.get("metadata", {})
+            formatted_result: dict[str, Any] = {
+                "id": item_dict.get("id"),
+                "score": item_dict.get("score"),
+                "document": (
+                    metadata.get("document", "") if isinstance(metadata, dict) else ""
+                ),
+                "metadata": (
+                    {k: v for k, v in metadata.items() if k != "document"}
+                    if isinstance(metadata, dict)
+                    else {}
+                ),
             }
             formatted_results.append(formatted_result)
         return formatted_results
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "ToucanDB":
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         await self.close()
 
@@ -543,7 +564,7 @@ def create_schema(
     dimensions: int,
     metric: str = "cosine",
     index_type: str = "hnsw",
-    **kwargs,
+    **kwargs: Any,
 ) -> VectorSchema:
     """
     Create a vector schema with sensible defaults.
