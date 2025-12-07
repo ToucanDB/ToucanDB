@@ -5,24 +5,25 @@ This module defines the fundamental types used throughout ToucanDB,
 including vector representations, metadata structures, and search results.
 """
 
-from typing import Dict, List, Optional, Union, Any, Literal, TypeVar, Generic
-from enum import Enum
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
+from typing import Any, Generic, Literal, Optional, TypeVar, Union
+
 import numpy as np
 from pydantic import BaseModel, Field, validator
 
-
 # Type aliases for clarity
-VectorData = Union[List[float], np.ndarray]
-MetadataDict = Dict[str, Any]
+VectorData = Union[list[float], np.ndarray]
+MetadataDict = dict[str, Any]
 VectorId = Union[str, int]
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class DistanceMetric(str, Enum):
     """Supported distance metrics for vector similarity."""
+
     COSINE = "cosine"
     EUCLIDEAN = "euclidean"
     DOT_PRODUCT = "dot_product"
@@ -32,15 +33,17 @@ class DistanceMetric(str, Enum):
 
 class IndexType(str, Enum):
     """Supported vector index algorithms."""
-    HNSW = "hnsw"          # Hierarchical Navigable Small World
-    IVF = "ivf"            # Inverted File Index
-    FLAT = "flat"          # Brute force (exact search)
-    LSH = "lsh"            # Locality Sensitive Hashing
-    ANNOY = "annoy"        # Approximate Nearest Neighbors Oh Yeah
+
+    HNSW = "hnsw"  # Hierarchical Navigable Small World
+    IVF = "ivf"  # Inverted File Index
+    FLAT = "flat"  # Brute force (exact search)
+    LSH = "lsh"  # Locality Sensitive Hashing
+    ANNOY = "annoy"  # Approximate Nearest Neighbors Oh Yeah
 
 
 class CompressionType(str, Enum):
     """Supported compression algorithms."""
+
     NONE = "none"
     LZ4 = "lz4"
     ZSTD = "zstd"
@@ -49,6 +52,7 @@ class CompressionType(str, Enum):
 
 class QuantizationType(str, Enum):
     """Supported vector quantization methods."""
+
     NONE = "none"
     FP16 = "fp16"
     INT8 = "int8"
@@ -59,6 +63,7 @@ class QuantizationType(str, Enum):
 @dataclass
 class Vector:
     """Represents a single vector with metadata."""
+
     id: VectorId
     data: np.ndarray
     metadata: MetadataDict
@@ -74,7 +79,7 @@ class Vector:
         """Get the number of dimensions in the vector."""
         return len(self.data)
 
-    def normalize(self) -> 'Vector':
+    def normalize(self) -> "Vector":
         """Return a normalized copy of the vector."""
         norm = np.linalg.norm(self.data)
         if norm > 0:
@@ -86,12 +91,13 @@ class Vector:
             id=self.id,
             data=normalized_data,
             metadata=self.metadata.copy(),
-            timestamp=self.timestamp
+            timestamp=self.timestamp,
         )
 
 
 class VectorSchema(BaseModel):
     """Schema definition for a vector collection."""
+
     name: str = Field(..., description="Collection name")
     dimensions: int = Field(..., gt=0, description="Vector dimensions")
     metric: DistanceMetric = Field(default=DistanceMetric.COSINE)
@@ -107,9 +113,9 @@ class VectorSchema(BaseModel):
     # Storage parameters
     max_vectors: Optional[int] = Field(default=None, gt=0)
     enable_metadata_index: bool = Field(default=True)
-    metadata_schema: Optional[Dict[str, str]] = Field(default=None)
+    metadata_schema: Optional[dict[str, str]] = Field(default=None)
 
-    @validator('dimensions')
+    @validator("dimensions")
     def validate_dimensions(cls, v):
         if v > 10000:
             raise ValueError("Dimensions cannot exceed 10,000")
@@ -119,25 +125,27 @@ class VectorSchema(BaseModel):
 @dataclass
 class SearchResult:
     """Result from a vector similarity search."""
+
     id: VectorId
     vector: Optional[np.ndarray]
     score: float
     metadata: MetadataDict
     distance: float
 
-    def __lt__(self, other: 'SearchResult') -> bool:
+    def __lt__(self, other: "SearchResult") -> bool:
         """Enable sorting by score (higher is better)."""
         return self.score > other.score
 
 
 class SearchQuery(BaseModel):
     """Query specification for vector search."""
-    vector: List[float] = Field(..., description="Query vector")
+
+    vector: list[float] = Field(..., description="Query vector")
     k: int = Field(default=10, gt=0, le=1000, description="Number of results")
     threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     include_vectors: bool = Field(default=False)
     include_metadata: bool = Field(default=True)
-    metadata_filter: Optional[Dict[str, Any]] = Field(default=None)
+    metadata_filter: Optional[dict[str, Any]] = Field(default=None)
 
     # Search parameters
     ef: Optional[int] = Field(default=None, gt=0)  # HNSW search parameter
@@ -146,16 +154,17 @@ class SearchQuery(BaseModel):
 
 class InsertRequest(BaseModel):
     """Request to insert vectors into a collection."""
-    vectors: List[Dict[str, Any]] = Field(..., min_items=1)
+
+    vectors: list[dict[str, Any]] = Field(..., min_items=1)
     batch_size: int = Field(default=1000, gt=0)
     upsert: bool = Field(default=False)
 
-    @validator('vectors')
+    @validator("vectors")
     def validate_vectors(cls, v):
         for i, vec in enumerate(v):
-            if 'id' not in vec:
+            if "id" not in vec:
                 raise ValueError(f"Vector {i} missing required field 'id'")
-            if 'vector' not in vec:
+            if "vector" not in vec:
                 raise ValueError(f"Vector {i} missing required field 'vector'")
         return v
 
@@ -163,6 +172,7 @@ class InsertRequest(BaseModel):
 @dataclass
 class CollectionStats:
     """Statistics about a vector collection."""
+
     name: str
     total_vectors: int
     dimensions: int
@@ -214,6 +224,7 @@ class DatabaseConfig(BaseModel):
 
 class ErrorCode(str, Enum):
     """ToucanDB error codes."""
+
     COLLECTION_NOT_FOUND = "COLLECTION_NOT_FOUND"
     VECTOR_NOT_FOUND = "VECTOR_NOT_FOUND"
     DIMENSION_MISMATCH = "DIMENSION_MISMATCH"
@@ -230,6 +241,7 @@ class ErrorCode(str, Enum):
 @dataclass
 class OperationResult(Generic[T]):
     """Generic result wrapper for operations."""
+
     success: bool
     data: Optional[T] = None
     error_code: Optional[ErrorCode] = None
@@ -237,53 +249,52 @@ class OperationResult(Generic[T]):
     execution_time_ms: float = 0.0
 
     @classmethod
-    def success_result(cls, data: T, execution_time_ms: float = 0.0) -> 'OperationResult[T]':
+    def success_result(
+        cls, data: T, execution_time_ms: float = 0.0
+    ) -> "OperationResult[T]":
         """Create a successful operation result."""
-        return cls(
-            success=True,
-            data=data,
-            execution_time_ms=execution_time_ms
-        )
+        return cls(success=True, data=data, execution_time_ms=execution_time_ms)
 
     @classmethod
     def error_result(
-        cls,
-        error_code: ErrorCode,
-        error_message: str,
-        execution_time_ms: float = 0.0
-    ) -> 'OperationResult[T]':
+        cls, error_code: ErrorCode, error_message: str, execution_time_ms: float = 0.0
+    ) -> "OperationResult[T]":
         """Create an error operation result."""
         return cls(
             success=False,
             error_code=error_code,
             error_message=error_message,
-            execution_time_ms=execution_time_ms
+            execution_time_ms=execution_time_ms,
         )
 
 
 # Batch operation types
 class BatchOperation(BaseModel):
     """Base class for batch operations."""
+
     operation_type: Literal["insert", "update", "delete"]
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
 class BatchInsert(BatchOperation):
     """Batch insert operation."""
+
     operation_type: Literal["insert"] = "insert"
-    vectors: List[Dict[str, Any]]
+    vectors: list[dict[str, Any]]
 
 
 class BatchUpdate(BatchOperation):
     """Batch update operation."""
+
     operation_type: Literal["update"] = "update"
-    updates: List[Dict[str, Any]]
+    updates: list[dict[str, Any]]
 
 
 class BatchDelete(BatchOperation):
     """Batch delete operation."""
+
     operation_type: Literal["delete"] = "delete"
-    ids: List[VectorId]
+    ids: list[VectorId]
 
 
 BatchOperationType = Union[BatchInsert, BatchUpdate, BatchDelete]

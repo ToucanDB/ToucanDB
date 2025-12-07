@@ -5,8 +5,9 @@ This module defines all custom exceptions used throughout ToucanDB,
 providing clear error handling and debugging information.
 """
 
-from typing import Optional, Dict, Any
 from datetime import datetime
+from typing import Any, Optional
+
 from .types import ErrorCode
 
 
@@ -17,7 +18,7 @@ class ToucanDBException(Exception):
         self,
         message: str,
         error_code: Optional[ErrorCode] = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[dict[str, Any]] = None,
     ):
         super().__init__(message)
         self.message = message
@@ -29,13 +30,13 @@ class ToucanDBException(Exception):
             return f"[{self.error_code}] {self.message}"
         return self.message
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert exception to dictionary for serialization."""
         return {
             "error_type": self.__class__.__name__,
             "message": self.message,
             "error_code": self.error_code,
-            "details": self.details
+            "details": self.details,
         }
 
 
@@ -46,7 +47,7 @@ class CollectionNotFoundError(ToucanDBException):
         super().__init__(
             f"Collection '{collection_name}' not found",
             ErrorCode.COLLECTION_NOT_FOUND,
-            {"collection_name": collection_name}
+            {"collection_name": collection_name},
         )
 
 
@@ -57,7 +58,7 @@ class VectorNotFoundError(ToucanDBException):
         super().__init__(
             f"Vector '{vector_id}' not found in collection '{collection_name}'",
             ErrorCode.VECTOR_NOT_FOUND,
-            {"vector_id": vector_id, "collection_name": collection_name}
+            {"vector_id": vector_id, "collection_name": collection_name},
         )
 
 
@@ -72,18 +73,22 @@ class DimensionMismatchError(ToucanDBException):
         super().__init__(
             message,
             ErrorCode.DIMENSION_MISMATCH,
-            {"expected_dimensions": expected, "actual_dimensions": actual, "vector_id": vector_id}
+            {
+                "expected_dimensions": expected,
+                "actual_dimensions": actual,
+                "vector_id": vector_id,
+            },
         )
 
 
 class InvalidSchemaError(ToucanDBException):
     """Raised when a schema is invalid or incompatible."""
 
-    def __init__(self, reason: str, schema_details: Optional[Dict[str, Any]] = None):
+    def __init__(self, reason: str, schema_details: Optional[dict[str, Any]] = None):
         super().__init__(
             f"Invalid schema: {reason}",
             ErrorCode.INVALID_SCHEMA,
-            {"reason": reason, "schema": schema_details}
+            {"reason": reason, "schema": schema_details},
         )
 
 
@@ -94,7 +99,7 @@ class EncryptionError(ToucanDBException):
         super().__init__(
             f"Encryption error during {operation}: {reason}",
             ErrorCode.ENCRYPTION_ERROR,
-            {"operation": operation, "reason": reason}
+            {"operation": operation, "reason": reason},
         )
 
 
@@ -105,7 +110,7 @@ class StorageError(ToucanDBException):
         super().__init__(
             f"Storage error during {operation} at '{path}': {reason}",
             ErrorCode.STORAGE_ERROR,
-            {"operation": operation, "path": path, "reason": reason}
+            {"operation": operation, "path": path, "reason": reason},
         )
 
 
@@ -116,7 +121,7 @@ class IndexError(ToucanDBException):
         super().__init__(
             f"Index error during {operation} with {index_type}: {reason}",
             ErrorCode.INDEX_ERROR,
-            {"operation": operation, "index_type": index_type, "reason": reason}
+            {"operation": operation, "index_type": index_type, "reason": reason},
         )
 
 
@@ -127,7 +132,7 @@ class MemoryError(ToucanDBException):
         super().__init__(
             f"Memory error during {operation}: {reason}",
             ErrorCode.MEMORY_ERROR,
-            {"operation": operation, "reason": reason, "memory_usage_mb": memory_usage}
+            {"operation": operation, "reason": reason, "memory_usage_mb": memory_usage},
         )
 
 
@@ -142,7 +147,7 @@ class PermissionDeniedError(ToucanDBException):
         super().__init__(
             message,
             ErrorCode.PERMISSION_DENIED,
-            {"operation": operation, "resource": resource, "user_id": user_id}
+            {"operation": operation, "resource": resource, "user_id": user_id},
         )
 
 
@@ -151,9 +156,16 @@ class RateLimitExceededError(ToucanDBException):
 
     def __init__(self, operation: str, limit: int, window_seconds: int):
         super().__init__(
-            f"Rate limit exceeded for {operation}: {limit} requests per {window_seconds} seconds",
+            (
+                f"Rate limit exceeded for {operation}: "
+                f"{limit} requests per {window_seconds} seconds"
+            ),
             ErrorCode.RATE_LIMIT_EXCEEDED,
-            {"operation": operation, "limit": limit, "window_seconds": window_seconds}
+            {
+                "operation": operation,
+                "limit": limit,
+                "window_seconds": window_seconds,
+            },
         )
 
 
@@ -163,7 +175,7 @@ class ConfigurationError(ToucanDBException):
     def __init__(self, parameter: str, value: Any, reason: str):
         super().__init__(
             f"Invalid configuration for '{parameter}' = {value}: {reason}",
-            details={"parameter": parameter, "value": value, "reason": reason}
+            details={"parameter": parameter, "value": value, "reason": reason},
         )
 
 
@@ -174,7 +186,7 @@ class DatabaseCorruptionError(ToucanDBException):
         super().__init__(
             f"Database corruption detected in {component}: {details}",
             ErrorCode.STORAGE_ERROR,
-            {"component": component, "corruption_details": details}
+            {"component": component, "corruption_details": details},
         )
 
 
@@ -184,7 +196,7 @@ class ConnectionError(ToucanDBException):
     def __init__(self, reason: str, retry_count: int = 0):
         super().__init__(
             f"Connection failed: {reason} (retries: {retry_count})",
-            details={"reason": reason, "retry_count": retry_count}
+            details={"reason": reason, "retry_count": retry_count},
         )
 
 
@@ -196,7 +208,7 @@ class BatchOperationError(ToucanDBException):
         operation_type: str,
         failed_items: int,
         total_items: int,
-        errors: Optional[list] = None
+        errors: Optional[list] = None,
     ):
         super().__init__(
             f"Batch {operation_type} failed: {failed_items}/{total_items} items failed",
@@ -204,8 +216,8 @@ class BatchOperationError(ToucanDBException):
                 "operation_type": operation_type,
                 "failed_items": failed_items,
                 "total_items": total_items,
-                "errors": errors or []
-            }
+                "errors": errors or [],
+            },
         )
 
 
@@ -215,7 +227,7 @@ class QueryTimeoutError(ToucanDBException):
     def __init__(self, timeout_seconds: float, query_type: str):
         super().__init__(
             f"Query timeout after {timeout_seconds}s for {query_type}",
-            details={"timeout_seconds": timeout_seconds, "query_type": query_type}
+            details={"timeout_seconds": timeout_seconds, "query_type": query_type},
         )
 
 
@@ -228,8 +240,8 @@ class ResourceExhaustedError(ToucanDBException):
             details={
                 "resource_type": resource_type,
                 "current_usage": current_usage,
-                "limit": limit
-            }
+                "limit": limit,
+            },
         )
 
 
@@ -239,37 +251,37 @@ class ValidationError(ToucanDBException):
     def __init__(self, field: str, value: Any, constraint: str):
         super().__init__(
             f"Validation failed for field '{field}': {constraint}",
-            details={"field": field, "value": value, "constraint": constraint}
+            details={"field": field, "value": value, "constraint": constraint},
         )
 
 
 # Utility functions for exception handling
 def handle_exception(func):
     """Decorator to handle and convert common exceptions to ToucanDB exceptions."""
+
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
         except FileNotFoundError as e:
-            raise StorageError("read", str(e.filename or "unknown"), str(e))
+            raise StorageError("read", str(e.filename or "unknown"), str(e)) from e
         except PermissionError as e:
-            raise PermissionDeniedError("file_access", str(e.filename or "unknown"))
+            raise PermissionDeniedError(
+                "file_access", str(e.filename or "unknown")
+            ) from e
         except MemoryError as e:
-            raise MemoryError("allocation", str(e))
+            raise MemoryError("allocation", str(e)) from e
         except ValueError as e:
-            raise ValidationError("unknown", "unknown", str(e))
+            raise ValidationError("unknown", "unknown", str(e)) from e
         except Exception as e:
             # Re-raise ToucanDB exceptions as-is
             if isinstance(e, ToucanDBException):
                 raise
             # Wrap other exceptions
-            raise ToucanDBException(f"Unexpected error: {str(e)}")
+            raise ToucanDBException(f"Unexpected error: {str(e)}") from e
+
     return wrapper
 
 
-def create_error_context(operation: str, **kwargs) -> Dict[str, Any]:
+def create_error_context(operation: str, **kwargs) -> dict[str, Any]:
     """Create error context for debugging."""
-    return {
-        "operation": operation,
-        "timestamp": str(datetime.utcnow()),
-        **kwargs
-    }
+    return {"operation": operation, "timestamp": str(datetime.utcnow()), **kwargs}

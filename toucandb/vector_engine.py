@@ -5,42 +5,42 @@ The core vector processing engine that handles indexing, search, and storage
 of high-dimensional vectors with state-of-the-art algorithms and optimizations.
 """
 
-import os
-import time
-import asyncio
-import threading
-from typing import Dict, List, Optional, Tuple, Union, Any, AsyncIterator
-from pathlib import Path
-from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
 import logging
+import threading
+import time
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Optional
 
 try:
-    import numpy as np
     import faiss
-    from scipy.spatial.distance import cosine, euclidean
     import lz4.frame
-    import xxhash
+    import msgpack
+    import numpy as np
     from cryptography.fernet import Fernet
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-    import msgpack
-except ImportError as e:
+except ImportError:
     # These imports will be available after installing dependencies
     pass
 
+from .exceptions import EncryptionError, IndexError, StorageError, ValidationError
 from .types import (
-    Vector, VectorSchema, SearchResult, SearchQuery, InsertRequest,
-    DistanceMetric, IndexType, CompressionType, QuantizationType,
-    VectorId, MetadataDict, OperationResult, ErrorCode, CollectionStats
+    CollectionStats,
+    CompressionType,
+    DistanceMetric,
+    ErrorCode,
+    IndexType,
+    MetadataDict,
+    OperationResult,
+    QuantizationType,
+    SearchQuery,
+    SearchResult,
+    Vector,
+    VectorId,
+    VectorSchema,
 )
-from .exceptions import (
-    ToucanDBException, IndexError, MemoryError, StorageError,
-    DimensionMismatchError, EncryptionError, ValidationError
-)
-from .schema import SchemaManager
-
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class IndexConfig:
     """Configuration for vector indices."""
+
     ef_construction: int = 200
     ef_search: int = 100
     m: int = 16
@@ -63,8 +64,8 @@ class VectorIndex:
         self.schema = schema
         self.config = config
         self.index = None
-        self.id_mapping: Dict[int, VectorId] = {}
-        self.reverse_mapping: Dict[VectorId, int] = {}
+        self.id_mapping: dict[int, VectorId] = {}
+        self.reverse_mapping: dict[VectorId, int] = {}
         self.next_id = 0
         self._lock = threading.RLock()
 
@@ -76,7 +77,9 @@ class VectorIndex:
 
         if self.schema.index_type == IndexType.FLAT:
             if self.schema.metric == DistanceMetric.COSINE:
-                self.index = faiss.IndexFlatIP(d)  # Inner product for normalized vectors
+                self.index = faiss.IndexFlatIP(
+                    d
+                )  # Inner product for normalized vectors
             elif self.schema.metric == DistanceMetric.EUCLIDEAN:
                 self.index = faiss.IndexFlatL2(d)
             else:
@@ -99,10 +102,10 @@ class VectorIndex:
             raise IndexError(
                 "initialize",
                 self.schema.index_type,
-                f"Unsupported index type: {self.schema.index_type}"
+                f"Unsupported index type: {self.schema.index_type}",
             )
 
-    def add_vectors(self, vectors: List[Vector]) -> List[int]:
+    def add_vectors(self, vectors: list[Vector]) -> list[int]:
         """Add vectors to the index."""
         with self._lock:
             if not vectors:
@@ -124,9 +127,14 @@ class VectorIndex:
             start_id = self.next_id
             faiss_ids = list(range(start_id, start_id + len(vectors)))
 
-            if hasattr(self.index, 'add_with_ids') and self.schema.index_type in [IndexType.FLAT, IndexType.IVF]:
+            if hasattr(self.index, "add_with_ids") and self.schema.index_type in [
+                IndexType.FLAT,
+                IndexType.IVF,
+            ]:
                 # Use add_with_ids for indices that support it
-                self.index.add_with_ids(vector_data, np.array(faiss_ids, dtype=np.int64))
+                self.index.add_with_ids(
+                    vector_data, np.array(faiss_ids, dtype=np.int64)
+                )
             else:
                 # Use regular add for HNSW and other indices
                 self.index.add(vector_data)
@@ -140,7 +148,7 @@ class VectorIndex:
             self.next_id += len(vectors)
             return faiss_ids
 
-    def search(self, query: SearchQuery) -> List[SearchResult]:
+    def search(self, query: SearchQuery) -> list[SearchResult]:
         """Search for similar vectors."""
         with self._lock:
             if self.index.ntotal == 0:
@@ -182,17 +190,21 @@ class VectorIndex:
                     if self.schema.metric == DistanceMetric.COSINE:
                         score = float(distance)  # Already similarity for IP
                     else:
-                        score = 1.0 / (1.0 + float(distance))  # Convert distance to similarity
+                        score = 1.0 / (
+                            1.0 + float(distance)
+                        )  # Convert distance to similarity
 
                     # Apply threshold filter
                     if query.threshold is None or score >= query.threshold:
-                        results.append(SearchResult(
-                            id=vector_id,
-                            vector=None,  # Will be populated later if requested
-                            score=score,
-                            metadata={},  # Will be populated later
-                            distance=float(distance)
-                        ))
+                        results.append(
+                            SearchResult(
+                                id=vector_id,
+                                vector=None,  # Will be populated later if requested
+                                score=score,
+                                metadata={},  # Will be populated later
+                                distance=float(distance),
+                            )
+                        )
 
             return results
 
@@ -211,7 +223,7 @@ class VectorIndex:
 
             return True
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get index statistics."""
         with self._lock:
             return {
@@ -219,8 +231,10 @@ class VectorIndex:
                 "index_type": self.schema.index_type,
                 "metric": self.schema.metric,
                 "dimensions": self.schema.dimensions,
-                "memory_usage_bytes": self.index.ntotal * self.schema.dimensions * 4,  # FP32
-                "is_trained": self.index.is_trained
+                "memory_usage_bytes": self.index.ntotal
+                * self.schema.dimensions
+                * 4,  # FP32
+                "is_trained": self.index.is_trained,
             }
 
 
@@ -235,7 +249,9 @@ class CompressionEngine:
         elif compression_type == CompressionType.LZ4:
             return lz4.frame.compress(data)
         else:
-            raise ValidationError("compression_type", compression_type, "Unsupported compression type")
+            raise ValidationError(
+                "compression_type", compression_type, "Unsupported compression type"
+            )
 
     @staticmethod
     def decompress_data(data: bytes, compression_type: CompressionType) -> bytes:
@@ -245,10 +261,14 @@ class CompressionEngine:
         elif compression_type == CompressionType.LZ4:
             return lz4.frame.decompress(data)
         else:
-            raise ValidationError("compression_type", compression_type, "Unsupported compression type")
+            raise ValidationError(
+                "compression_type", compression_type, "Unsupported compression type"
+            )
 
     @staticmethod
-    def quantize_vector(vector: np.ndarray, quantization: QuantizationType) -> np.ndarray:
+    def quantize_vector(
+        vector: np.ndarray, quantization: QuantizationType
+    ) -> np.ndarray:
         """Quantize vector to reduce memory usage."""
         if quantization == QuantizationType.NONE:
             return vector.astype(np.float32)
@@ -264,7 +284,9 @@ class CompressionEngine:
             else:
                 return np.zeros_like(vector, dtype=np.int8)
         else:
-            raise ValidationError("quantization", quantization, "Unsupported quantization type")
+            raise ValidationError(
+                "quantization", quantization, "Unsupported quantization type"
+            )
 
 
 class EncryptionEngine:
@@ -277,7 +299,7 @@ class EncryptionEngine:
 
     def _derive_key(self, password: bytes) -> None:
         """Derive encryption key from password."""
-        salt = b'toucandb_salt_2023'  # In production, use random salt
+        salt = b"toucandb_salt_2023"  # In production, use random salt
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
@@ -287,6 +309,7 @@ class EncryptionEngine:
         key = kdf.derive(password)
         # Use the derived key with base64 encoding for Fernet
         import base64
+
         key_b64 = base64.urlsafe_b64encode(key)
         self.fernet = Fernet(key_b64)
 
@@ -297,7 +320,7 @@ class EncryptionEngine:
         try:
             return self.fernet.encrypt(data)
         except Exception as e:
-            raise EncryptionError("encrypt", str(e))
+            raise EncryptionError("encrypt", str(e)) from e
 
     def decrypt(self, data: bytes) -> bytes:
         """Decrypt data."""
@@ -306,7 +329,7 @@ class EncryptionEngine:
         try:
             return self.fernet.decrypt(data)
         except Exception as e:
-            raise EncryptionError("decrypt", str(e))
+            raise EncryptionError("decrypt", str(e)) from e
 
 
 class VectorStorage:
@@ -316,7 +339,7 @@ class VectorStorage:
         self,
         storage_path: Path,
         schema: VectorSchema,
-        encryption_key: Optional[str] = None
+        encryption_key: Optional[str] = None,
     ):
         self.storage_path = storage_path
         self.schema = schema
@@ -332,7 +355,7 @@ class VectorStorage:
         self.encryption = EncryptionEngine(encryption_key)
 
         # In-memory cache
-        self._vector_cache: Dict[VectorId, Vector] = {}
+        self._vector_cache: dict[VectorId, Vector] = {}
         self._cache_lock = threading.RLock()
 
     def store_vector(self, vector: Vector) -> None:
@@ -344,26 +367,30 @@ class VectorStorage:
 
         # Serialize vector data
         vector_data = {
-            'id': vector.id,
-            'data': quantized_data.tobytes(),
-            'shape': quantized_data.shape,
-            'dtype': str(quantized_data.dtype),
-            'timestamp': vector.timestamp.isoformat()
+            "id": vector.id,
+            "data": quantized_data.tobytes(),
+            "shape": quantized_data.shape,
+            "dtype": str(quantized_data.dtype),
+            "timestamp": vector.timestamp.isoformat(),
         }
 
         # Serialize metadata
         metadata_data = {
-            'id': vector.id,
-            'metadata': vector.metadata,
-            'timestamp': vector.timestamp.isoformat()
+            "id": vector.id,
+            "metadata": vector.metadata,
+            "timestamp": vector.timestamp.isoformat(),
         }
 
         # Compress and encrypt
         vector_bytes = msgpack.packb(vector_data)
         metadata_bytes = msgpack.packb(metadata_data)
 
-        vector_bytes = self.compression.compress_data(vector_bytes, self.schema.compression)
-        metadata_bytes = self.compression.compress_data(metadata_bytes, self.schema.compression)
+        vector_bytes = self.compression.compress_data(
+            vector_bytes, self.schema.compression
+        )
+        metadata_bytes = self.compression.compress_data(
+            metadata_bytes, self.schema.compression
+        )
 
         vector_bytes = self.encryption.encrypt(vector_bytes)
         metadata_bytes = self.encryption.encrypt(metadata_bytes)
@@ -373,10 +400,10 @@ class VectorStorage:
         metadata_file = self.metadata_path / f"{vector.id}.meta"
 
         try:
-            with open(vector_file, 'wb') as f:
+            with open(vector_file, "wb") as f:
                 f.write(vector_bytes)
 
-            with open(metadata_file, 'wb') as f:
+            with open(metadata_file, "wb") as f:
                 f.write(metadata_bytes)
 
             # Update cache
@@ -384,7 +411,7 @@ class VectorStorage:
                 self._vector_cache[vector.id] = vector
 
         except Exception as e:
-            raise StorageError("write", str(vector_file), str(e))
+            raise StorageError("write", str(vector_file), str(e)) from e
 
     def load_vector(self, vector_id: VectorId) -> Optional[Vector]:
         """Load a vector from disk or cache."""
@@ -401,35 +428,39 @@ class VectorStorage:
 
         try:
             # Load and decrypt
-            with open(vector_file, 'rb') as f:
+            with open(vector_file, "rb") as f:
                 vector_bytes = f.read()
 
-            with open(metadata_file, 'rb') as f:
+            with open(metadata_file, "rb") as f:
                 metadata_bytes = f.read()
 
             vector_bytes = self.encryption.decrypt(vector_bytes)
             metadata_bytes = self.encryption.decrypt(metadata_bytes)
 
             # Decompress
-            vector_bytes = self.compression.decompress_data(vector_bytes, self.schema.compression)
-            metadata_bytes = self.compression.decompress_data(metadata_bytes, self.schema.compression)
+            vector_bytes = self.compression.decompress_data(
+                vector_bytes, self.schema.compression
+            )
+            metadata_bytes = self.compression.decompress_data(
+                metadata_bytes, self.schema.compression
+            )
 
             # Deserialize
             vector_data = msgpack.unpackb(vector_bytes, raw=False)
             metadata_data = msgpack.unpackb(metadata_bytes, raw=False)
 
             # Reconstruct vector
-            data_bytes = vector_data['data']
-            shape = vector_data['shape']
-            dtype = np.dtype(vector_data['dtype'])
+            data_bytes = vector_data["data"]
+            shape = vector_data["shape"]
+            dtype = np.dtype(vector_data["dtype"])
 
             vector_array = np.frombuffer(data_bytes, dtype=dtype).reshape(shape)
 
             vector = Vector(
-                id=vector_data['id'],
+                id=vector_data["id"],
                 data=vector_array.astype(np.float32),  # Convert back to float32
-                metadata=metadata_data['metadata'],
-                timestamp=datetime.fromisoformat(vector_data['timestamp'])
+                metadata=metadata_data["metadata"],
+                timestamp=datetime.fromisoformat(vector_data["timestamp"]),
             )
 
             # Update cache
@@ -439,7 +470,7 @@ class VectorStorage:
             return vector
 
         except Exception as e:
-            raise StorageError("read", str(vector_file), str(e))
+            raise StorageError("read", str(vector_file), str(e)) from e
 
     def delete_vector(self, vector_id: VectorId) -> bool:
         """Delete a vector from storage."""
@@ -464,16 +495,16 @@ class VectorStorage:
             return deleted
 
         except Exception as e:
-            raise StorageError("delete", str(vector_file), str(e))
+            raise StorageError("delete", str(vector_file), str(e)) from e
 
-    def list_vectors(self) -> List[VectorId]:
+    def list_vectors(self) -> list[VectorId]:
         """List all stored vector IDs."""
         vector_ids = []
         for vector_file in self.vectors_path.glob("*.vec"):
             vector_ids.append(vector_file.stem)
         return vector_ids
 
-    def get_storage_stats(self) -> Dict[str, Any]:
+    def get_storage_stats(self) -> dict[str, Any]:
         """Get storage statistics."""
         total_size = 0
         vector_count = 0
@@ -490,7 +521,7 @@ class VectorStorage:
             "total_size_bytes": total_size,
             "cache_size": len(self._vector_cache),
             "compression": self.schema.compression,
-            "quantization": self.schema.quantization
+            "quantization": self.schema.quantization,
         }
 
 
@@ -502,7 +533,7 @@ class VectorCollection:
         name: str,
         schema: VectorSchema,
         storage_path: Path,
-        encryption_key: Optional[str] = None
+        encryption_key: Optional[str] = None,
     ):
         self.name = name
         self.schema = schema
@@ -514,7 +545,7 @@ class VectorCollection:
             ef_construction=schema.hnsw_ef_construction,
             m=schema.hnsw_m,
             nlist=schema.ivf_nlist,
-            metric=schema.metric
+            metric=schema.metric,
         )
 
         self.index = VectorIndex(schema, index_config)
@@ -532,7 +563,7 @@ class VectorCollection:
             updated_at=datetime.utcnow(),
             avg_search_latency_ms=0.0,
             cache_hit_ratio=0.0,
-            compression_ratio=0.0
+            compression_ratio=0.0,
         )
 
         # Load existing vectors
@@ -547,7 +578,7 @@ class VectorCollection:
         # Load vectors in batches
         batch_size = 1000
         for i in range(0, len(vector_ids), batch_size):
-            batch_ids = vector_ids[i:i + batch_size]
+            batch_ids = vector_ids[i : i + batch_size]
             vectors = []
 
             for vector_id in batch_ids:
@@ -559,7 +590,9 @@ class VectorCollection:
                 self.index.add_vectors(vectors)
                 self._stats.total_vectors += len(vectors)
 
-    async def insert(self, vectors: List[Dict[str, Any]]) -> OperationResult[List[VectorId]]:
+    async def insert(
+        self, vectors: list[dict[str, Any]]
+    ) -> OperationResult[list[VectorId]]:
         """Insert vectors into the collection."""
         start_time = time.time()
 
@@ -567,24 +600,27 @@ class VectorCollection:
             # Validate and convert to Vector objects
             vector_objects = []
             for vec_data in vectors:
-                if 'id' not in vec_data or 'vector' not in vec_data:
+                if "id" not in vec_data or "vector" not in vec_data:
                     return OperationResult.error_result(
                         ErrorCode.VALIDATION_ERROR,
-                        "Each vector must have 'id' and 'vector' fields"
+                        "Each vector must have 'id' and 'vector' fields",
                     )
 
                 # Validate dimensions
-                if len(vec_data['vector']) != self.schema.dimensions:
+                if len(vec_data["vector"]) != self.schema.dimensions:
                     return OperationResult.error_result(
                         ErrorCode.DIMENSION_MISMATCH,
-                        f"Expected {self.schema.dimensions} dimensions, got {len(vec_data['vector'])}"
+                        (
+                            f"Expected {self.schema.dimensions} dimensions, "
+                            f"got {len(vec_data['vector'])}"
+                        ),
                     )
 
                 vector = Vector(
-                    id=vec_data['id'],
-                    data=np.array(vec_data['vector'], dtype=np.float32),
-                    metadata=vec_data.get('metadata', {}),
-                    timestamp=datetime.utcnow()
+                    id=vec_data["id"],
+                    data=np.array(vec_data["vector"], dtype=np.float32),
+                    metadata=vec_data.get("metadata", {}),
+                    timestamp=datetime.utcnow(),
                 )
                 vector_objects.append(vector)
 
@@ -602,19 +638,16 @@ class VectorCollection:
             execution_time = (time.time() - start_time) * 1000
 
             return OperationResult.success_result(
-                [v.id for v in vector_objects],
-                execution_time
+                [v.id for v in vector_objects], execution_time
             )
 
         except Exception as e:
             execution_time = (time.time() - start_time) * 1000
             return OperationResult.error_result(
-                ErrorCode.STORAGE_ERROR,
-                str(e),
-                execution_time
+                ErrorCode.STORAGE_ERROR, str(e), execution_time
             )
 
-    async def search(self, query: SearchQuery) -> OperationResult[List[SearchResult]]:
+    async def search(self, query: SearchQuery) -> OperationResult[list[SearchResult]]:
         """Search for similar vectors."""
         start_time = time.time()
 
@@ -623,7 +656,10 @@ class VectorCollection:
             if len(query.vector) != self.schema.dimensions:
                 return OperationResult.error_result(
                     ErrorCode.DIMENSION_MISMATCH,
-                    f"Query vector has {len(query.vector)} dimensions, expected {self.schema.dimensions}"
+                    (
+                        f"Query vector has {len(query.vector)} dimensions, "
+                        f"expected {self.schema.dimensions}"
+                    ),
                 )
 
             # Perform search
@@ -659,12 +695,12 @@ class VectorCollection:
         except Exception as e:
             execution_time = (time.time() - start_time) * 1000
             return OperationResult.error_result(
-                ErrorCode.INDEX_ERROR,
-                str(e),
-                execution_time
+                ErrorCode.INDEX_ERROR, str(e), execution_time
             )
 
-    def _matches_filter(self, metadata: MetadataDict, filter_dict: Dict[str, Any]) -> bool:
+    def _matches_filter(
+        self, metadata: MetadataDict, filter_dict: dict[str, Any]
+    ) -> bool:
         """Check if metadata matches the filter."""
         for key, value in filter_dict.items():
             if key not in metadata:
@@ -697,9 +733,7 @@ class VectorCollection:
         except Exception as e:
             execution_time = (time.time() - start_time) * 1000
             return OperationResult.error_result(
-                ErrorCode.STORAGE_ERROR,
-                str(e),
-                execution_time
+                ErrorCode.STORAGE_ERROR, str(e), execution_time
             )
 
     def get_stats(self) -> CollectionStats:

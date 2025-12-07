@@ -6,12 +6,10 @@ create, manage, and query vector collections with state-of-the-art performance
 and security features.
 """
 
-import asyncio
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from .exceptions import (
     CollectionNotFoundError,
@@ -57,6 +55,8 @@ __all__ = [
     "ToucanDBException",
     "CollectionNotFoundError",
     "InvalidSchemaError",
+    "ConfigurationError",
+    "ErrorCode",
 ]
 
 
@@ -246,7 +246,7 @@ class ToucanDB:
 
         except Exception as e:
             logger.error(f"Failed to drop collection {name}: {e}")
-            raise StorageError("drop_collection", name, str(e))
+            raise StorageError("drop_collection", name, str(e)) from e
 
     async def insert_vectors(
         self,
@@ -430,28 +430,38 @@ class ToucanDB:
     def set_embedding_provider(self, provider) -> None:
         """Set the embedding provider for ML-first operations."""
         try:
-            from .ml import EmbeddingProvider
+            # Check if ML module is available
+            __import__("toucandb.ml")
+
             if not hasattr(provider, "embed") or not callable(provider.embed):
-                raise ValueError("Provider must implement the EmbeddingProvider protocol")
+                raise ValueError(
+                    "Provider must implement the EmbeddingProvider protocol"
+                )
             self._embedding_provider = provider
             logger.info("Embedding provider set successfully")
-        except ImportError:
+        except ImportError as e:
             logger.warning("ML module not available")
-            raise ValueError("ML features not available")
+            raise ValueError("ML features not available") from e
 
     @property
     def is_ml_ready(self) -> bool:
         """Check if the database is ready for ML operations."""
         try:
-            from . import ml
-            return hasattr(self, "_embedding_provider") and self._embedding_provider is not None
+            # Check if ML module is available
+            __import__("toucandb.ml")
+            return (
+                hasattr(self, "_embedding_provider")
+                and self._embedding_provider is not None
+            )
         except ImportError:
             return False
 
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for multiple texts."""
         if not hasattr(self, "_embedding_provider") or self._embedding_provider is None:
-            raise ValueError("No embedding provider configured. Use set_embedding_provider() first.")
+            raise ValueError(
+                "No embedding provider configured. Use set_embedding_provider() first."
+            )
         return await self._embedding_provider.embed(texts)
 
     async def embed_query(self, query: str) -> list[float]:
@@ -460,11 +470,11 @@ class ToucanDB:
         return embeddings[0]
 
     async def insert_documents(
-        self, 
-        collection_name: str, 
-        documents: list[str], 
+        self,
+        collection_name: str,
+        documents: list[str],
         metadata: Optional[list[dict]] = None,
-        ids: Optional[list[str]] = None
+        ids: Optional[list[str]] = None,
     ) -> list[str]:
         """Insert documents with automatic embedding generation."""
         embeddings = await self.embed_texts(documents)
@@ -478,22 +488,26 @@ class ToucanDB:
         return await self.insert_vectors(collection_name, vectors)
 
     async def semantic_search(
-        self, 
-        collection_name: str, 
-        query: str, 
+        self,
+        collection_name: str,
+        query: str,
         k: int = 10,
-        filter_metadata: Optional[dict] = None
+        filter_metadata: Optional[dict] = None,
     ) -> list[dict]:
         """Perform semantic search using query embedding."""
         query_embedding = await self.embed_query(query)
-        results = await self.search_vectors(collection_name, query_embedding, k, filter_metadata)
+        results = await self.search_vectors(
+            collection_name, query_embedding, k, filter_metadata
+        )
         formatted_results = []
         for result in results:
             formatted_result = {
                 "id": result.id,
                 "score": result.score,
                 "document": result.metadata.get("document", ""),
-                "metadata": {k: v for k, v in result.metadata.items() if k != "document"}
+                "metadata": {
+                    k: v for k, v in result.metadata.items() if k != "document"
+                },
             }
             formatted_results.append(formatted_result)
         return formatted_results
