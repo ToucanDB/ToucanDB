@@ -90,11 +90,13 @@ class VectorIndex:
         elif self.schema.index_type == IndexType.HNSW:
             if self.schema.metric == DistanceMetric.COSINE:
                 self.index = faiss.IndexHNSWFlat(d, self.config.m)
-                self.index.metric_type = faiss.METRIC_INNER_PRODUCT
+                if self.index is not None:
+                    self.index.metric_type = faiss.METRIC_INNER_PRODUCT
             else:
                 self.index = faiss.IndexHNSWFlat(d, self.config.m)
 
-            self.index.hnsw.efConstruction = self.config.ef_construction
+            if self.index is not None:
+                self.index.hnsw.efConstruction = self.config.ef_construction
 
         elif self.schema.index_type == IndexType.IVF:
             quantizer = faiss.IndexFlatL2(d)
@@ -262,7 +264,8 @@ class CompressionEngine:
         if compression_type == CompressionType.NONE:
             return data
         elif compression_type == CompressionType.LZ4:
-            return lz4.frame.compress(data)
+            compressed: bytes = lz4.frame.compress(data)  # type: ignore[no-any-return]
+            return compressed
         else:
             raise ValidationError(
                 "compression_type", compression_type, "Unsupported compression type"
@@ -274,7 +277,8 @@ class CompressionEngine:
         if compression_type == CompressionType.NONE:
             return data
         elif compression_type == CompressionType.LZ4:
-            return lz4.frame.decompress(data)
+            decompressed: bytes = lz4.frame.decompress(data)  # type: ignore[no-any-return]
+            return decompressed
         else:
             raise ValidationError(
                 "compression_type", compression_type, "Unsupported compression type"

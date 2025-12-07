@@ -282,6 +282,6 @@ def handle_exception(func: Any) -> Any:
     return wrapper
 
 
-def create_error_context(operation: str, **kwargs) -> dict[str, Any]:
+def create_error_context(operation: str, **kwargs: Any) -> dict[str, Any]:
     """Create error context for debugging."""
     return {"operation": operation, "timestamp": str(datetime.utcnow()), **kwargs}

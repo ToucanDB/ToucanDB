@@ -253,7 +253,7 @@ class ToucanDB:
         collection_name: str,
         vectors: list[dict[str, Any]],
         batch_size: int = 1000,
-    ) -> OperationResult[list[str]]:
+    ) -> OperationResult[list[VectorId]]:
         """
         Insert vectors into a collection.
 
@@ -286,7 +286,9 @@ class ToucanDB:
                 all_ids.extend(result.data)
             total_time += result.execution_time_ms
 
-        return OperationResult.success_result(all_ids, total_time)
+        return OperationResult.success_result(
+            all_ids, total_time
+        )  # type: ignore[arg-type]
 
     async def search_vectors(
         self, collection_name: str, query: SearchQuery
@@ -308,7 +310,11 @@ class ToucanDB:
             # Convert SearchResult objects to dictionaries
             search_results: list[dict[str, Any]] = []
             for sr in result.data:
-                result_dict = {"id": sr.id, "score": sr.score, "distance": sr.distance}
+                result_dict: dict[str, Any] = {
+                    "id": sr.id,
+                    "score": sr.score,
+                    "distance": sr.distance,
+                }
 
                 if query.include_metadata:
                     result_dict["metadata"] = sr.metadata
@@ -324,7 +330,14 @@ class ToucanDB:
                 search_results, result.execution_time_ms
             )
 
-        return result
+        # Return error result with proper type
+        return OperationResult[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            execution_time_ms=result.execution_time_ms,
+            error_code=result.error_code,
+            error_message=result.error_message,
+        )
 
     async def delete_vector(
         self, collection_name: str, vector_id: str
@@ -492,7 +505,8 @@ class ToucanDB:
             vectors.append(
                 {"id": vector_id, "vector": embedding, "metadata": vector_metadata}
             )
-        return await self.insert_vectors(collection_name, vectors)
+        result = await self.insert_vectors(collection_name, vectors)
+        return result  # type: ignore[return-value]
 
     async def semantic_search(
         self,
