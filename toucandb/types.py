@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Any, Generic, Literal, Optional, TypeVar, Union
 
 import numpy as np
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, validator
 
 # Type aliases for clarity
 VectorData = Union[list[float], "np.ndarray[Any, Any]"]
@@ -139,6 +139,8 @@ class SearchResult:
 
 class SearchQuery(BaseModel):
     """Query specification for vector search."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     vector: Union[list[float], np.ndarray[Any, Any]] = Field(
         ..., description="Query vector"
