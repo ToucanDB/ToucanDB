@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Any, Generic, Literal, Optional, TypeVar, Union
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # Type aliases for clarity
 VectorData = Union[list[float], "np.ndarray[Any, Any]"]
@@ -115,7 +115,8 @@ class VectorSchema(BaseModel):
     enable_metadata_index: bool = Field(default=True)
     metadata_schema: Optional[dict[str, str]] = Field(default=None)
 
-    @validator("dimensions")
+    @field_validator("dimensions")
+    @classmethod
     def validate_dimensions(cls, v: int) -> int:
         if v > 10000:
             raise ValueError("Dimensions cannot exceed 10,000")
@@ -163,7 +164,8 @@ class InsertRequest(BaseModel):
     batch_size: int = Field(default=1000, gt=0)
     upsert: bool = Field(default=False)
 
-    @validator("vectors")
+    @field_validator("vectors")
+    @classmethod
     def validate_vectors(cls, v: list[dict[str, Any]]) -> list[dict[str, Any]]:
         for i, vec in enumerate(v):
             if "id" not in vec:

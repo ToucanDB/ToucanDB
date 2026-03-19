@@ -225,7 +225,7 @@ class SchemaManager:
 
         data = {
             "version": schema_version.version,
-            "schema": schema_version.schema.dict(),
+            "schema": schema_version.schema.model_dump(),
             "created_at": schema_version.created_at.isoformat(),
             "migration_notes": schema_version.migration_notes,
             "is_active": schema_version.is_active,
@@ -247,7 +247,7 @@ class SchemaManager:
         if not schema:
             return None
 
-        schema_dict = schema.dict()
+        schema_dict = schema.model_dump()
         schema_str = json.dumps(schema_dict, sort_keys=True)
         return hashlib.sha256(schema_str.encode()).hexdigest()
 
@@ -317,7 +317,7 @@ class SchemaManager:
         return {
             "name": collection_name,
             "version": schema_version.version,
-            "schema": schema_version.schema.dict(),
+            "schema": schema_version.schema.model_dump(),
             "created_at": schema_version.created_at.isoformat(),
             "migration_notes": schema_version.migration_notes,
             "is_active": schema_version.is_active,
@@ -334,7 +334,7 @@ class SchemaManager:
         for collection_name, schema_version in self._schema_cache.items():
             export_data["schemas"][collection_name] = {
                 "version": schema_version.version,
-                "schema": schema_version.schema.dict(),
+                "schema": schema_version.schema.model_dump(),
                 "created_at": schema_version.created_at.isoformat(),
                 "migration_notes": schema_version.migration_notes,
                 "is_active": schema_version.is_active,

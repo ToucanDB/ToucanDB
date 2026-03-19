@@ -26,8 +26,9 @@ ToucanDB is a lightweight, ML-native vector database written in Python. It trans
 ## 📦 Installation
 
 ```bash
-pip install toucandb          # basic
-pip install toucandb[gpu]     # with GPU support
+pip install toucandb          # core (vector storage + FAISS search)
+pip install toucandb[ml]      # + sentence-transformers, OpenAI, LangChain…
+pip install toucandb[gpu]     # + GPU-accelerated FAISS
 pip install toucandb[dev]     # development / testing
 ```
 

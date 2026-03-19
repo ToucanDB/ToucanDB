@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 try:
     import faiss  # type: ignore[import-not-found]
@@ -317,7 +317,7 @@ class EncryptionEngine:
     """Handles data encryption and decryption."""
 
     def __init__(self, key: Optional[str] = None):
-        self.fernet = None
+        self.fernet: Optional[Any] = None
         if key:
             self._derive_key(key.encode())
 
@@ -342,7 +342,7 @@ class EncryptionEngine:
         if not self.fernet:
             return data
         try:
-            return self.fernet.encrypt(data)
+            return cast(bytes, self.fernet.encrypt(data))
         except Exception as e:
             raise EncryptionError("encrypt", str(e)) from e
 
@@ -351,7 +351,7 @@ class EncryptionEngine:
         if not self.fernet:
             return data
         try:
-            return self.fernet.decrypt(data)
+            return cast(bytes, self.fernet.decrypt(data))
         except Exception as e:
             raise EncryptionError("decrypt", str(e)) from e
 
@@ -689,12 +689,19 @@ class VectorCollection:
             # Perform search
             results = self.index.search(query)
 
-            # Populate metadata and vectors if requested
+            # Populate metadata and vectors if requested.
+            # Also load metadata when a metadata_filter is present so the
+            # filter can match against real values even if include_metadata=False.
             for result in results:
-                if query.include_metadata or query.include_vectors:
+                needs_load = (
+                    query.include_metadata
+                    or query.include_vectors
+                    or query.metadata_filter
+                )
+                if needs_load:
                     vector = self.storage.load_vector(result.id)
                     if vector:
-                        if query.include_metadata:
+                        if query.include_metadata or query.metadata_filter:
                             result.metadata = vector.metadata
                         if query.include_vectors:
                             result.vector = vector.data

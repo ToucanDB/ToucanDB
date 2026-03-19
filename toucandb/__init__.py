@@ -306,10 +306,10 @@ class ToucanDB:
         collection = self.get_collection(collection_name)
         result = await collection.search(query)
 
-        if result.success and result.data:
-            # Convert SearchResult objects to dictionaries
+        if result.success:
+            # Convert SearchResult objects to dictionaries (may be empty list)
             search_results: list[dict[str, Any]] = []
-            for sr in result.data:
+            for sr in result.data or []:
                 result_dict: dict[str, Any] = {
                     "id": sr.id,
                     "score": sr.score,
@@ -330,7 +330,7 @@ class ToucanDB:
                 search_results, result.execution_time_ms
             )
 
-        # Return error result with proper type
+        # Propagate error result with proper type
         return OperationResult[list[dict[str, Any]]](
             success=False,
             data=[],
@@ -398,7 +398,7 @@ class ToucanDB:
             "total_collections": len(self.collections),
             "total_vectors": total_vectors,
             "total_size_bytes": total_size,
-            "config": self.config.dict(),
+            "config": self.config.model_dump(),
             "collections": collection_info,
         }
 
