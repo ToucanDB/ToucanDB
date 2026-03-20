@@ -17,8 +17,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
     - uses: actions/checkout@v4
       with:
@@ -35,6 +33,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install build twine
 
+    - name: Build package
+      run: python -m build
+
     - name: Verify version matches tag
       if: github.event_name == 'release'
       run: |
@@ -45,9 +46,6 @@ jobs:
           exit 1
         fi
         echo "✅ Version $PKG_VERSION matches tag $GITHUB_REF_NAME"
-
-    - name: Build package
-      run: python -m build
 
     - name: Check package
       run: |
@@ -62,10 +60,7 @@ jobs:
   test-install:
     needs: build
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     strategy:
-      fail-fast: false
       matrix:
         python-version: ['3.9', '3.10', '3.11', '3.12']
     steps:
@@ -73,7 +68,6 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-        cache: 'pip'
 
     - name: Download build artifacts
       uses: actions/download-artifact@v4
