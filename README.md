@@ -4,6 +4,7 @@
 
 ![ToucanDB Logo](assets/toucandb-logo.png "ML-first vector database engine for LLM applications")
 
+[![PyPI](https://img.shields.io/pypi/v/toucandb.svg)](https://pypi.org/project/toucandb/)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](https://github.com/pH-7/ToucanDB/tree/main/tests)
@@ -25,11 +26,21 @@ ToucanDB is a lightweight, ML-native vector database written in Python. It trans
 
 ## 📦 Installation
 
+Available on [PyPI](https://pypi.org/project/toucandb/):
+
 ```bash
-pip install toucandb          # core (vector storage + FAISS search)
-pip install toucandb[ml]      # + sentence-transformers, OpenAI, LangChain…
-pip install toucandb[gpu]     # + GPU-accelerated FAISS
-pip install toucandb[dev]     # development / testing
+pip install toucandb       # pip
+poetry add toucandb        # Poetry
+uv add toucandb            # uv
+pdm add toucandb           # PDM
+```
+
+**Optional extras:**
+
+```bash
+pip install toucandb[ml]   # + sentence-transformers, OpenAI, LangChain…
+pip install toucandb[gpu]  # + GPU-accelerated FAISS
+pip install toucandb[dev]  # development / testing
 ```
 
 ## 🚀 Quick Start
