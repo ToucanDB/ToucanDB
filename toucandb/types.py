@@ -6,7 +6,7 @@ including vector representations, metadata structures, and search results.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Generic, Literal, Optional, TypeVar, Union
 
@@ -279,7 +279,7 @@ class BatchOperation(BaseModel):
     """Base class for batch operations."""
 
     operation_type: Literal["insert", "update", "delete"]
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class BatchInsert(BatchOperation):

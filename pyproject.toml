@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "toucandb"
-version = "1.0.0"
+version = "1.1.0"
 description = "ToucanDB - ML-first vector database for AI applications, LLM integration, and semantic search of unstructured data"
 readme = "README.md"
 license = {file = "LICENSE.md"}
@@ -41,7 +41,7 @@ dependencies = [
     "numpy>=1.24.0",
     "scipy>=1.10.0",
     "cryptography>=41.0.0",
-    "pydantic>=2.0.0",
+    "pydantic>=2.0.0,<3.0.0",
     "msgpack>=1.0.0",
     "lz4>=4.0.0",
     "xxhash>=3.0.0",
