@@ -1,6 +1,6 @@
 # 🦜 ToucanDB - Micro ML-First Vector DB Engine
 
-**Store, index, and search high-dimensional vector embeddings — built for RAG systems, semantic search, and LLM applications.**
+**Store, index, and search high-dimensional vector embeddings. Built for RAG systems, semantic search, and LLM applications.**
 
 ![ToucanDB Logo](assets/toucandb-logo.png "ML-first vector database engine for LLM applications")
 
@@ -14,7 +14,7 @@
 
 ToucanDB is a lightweight, ML-native vector database written in Python. It transforms unstructured data (text, images, audio) into searchable vector embeddings and retrieves them with sub-millisecond precision — without the overhead of a full server deployment.
 
-## ✨ Key Features
+## 📋 Main Features
 
 - **Semantic Search** — find by meaning, not keywords, using cosine / dot-product / Euclidean distance
 - **HNSW & IVF Indexing** — fast approximate nearest-neighbour search, auto-tuned
@@ -168,15 +168,6 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 ## 📄 License
 
 ToucanDB is released under the MIT License. See [license](LICENSE.md) for further details.
-
-## 🎯 Roadmap
-
-- [ ] Distributed clustering support
-- [ ] Real-time streaming updates
-- [ ] Multi-modal search (text + image)
-- [ ] Integration with popular ML frameworks
-- [ ] Cloud-native deployment options
-- [ ] GraphQL API support
 
 ---
 
