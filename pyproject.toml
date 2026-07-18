@@ -1,13 +1,14 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "toucandb"
-version = "1.1.0"
+version = "2.0.0"
 description = "ToucanDB - ML-first vector database for AI applications, LLM integration, and semantic search of unstructured data"
 readme = "README.md"
-license = {file = "LICENSE.md"}
+license = "MIT"
+license-files = ["LICENSE.md"]
 authors = [
     {name = "Pierre-Henry Soria", email = "pierre@ph7.me"}
 ]
@@ -20,101 +21,86 @@ keywords = [
     "rag", "llm", "semantic-search", "unstructured-data", "artificial-intelligence"
 ]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Database",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
-    "numpy>=1.24.0",
-    "scipy>=1.10.0",
-    "cryptography>=41.0.0",
-    "pydantic>=2.0.0,<3.0.0",
+    "numpy>=1.25.0,<3.0.0",
+    "cryptography>=42.0.0",
+    "pydantic>=2.7.0,<3.0.0",
     "msgpack>=1.0.0",
     "lz4>=4.0.0",
-    "xxhash>=3.0.0",
-    "faiss-cpu>=1.7.4",
-    "aiofiles>=23.0.0",
-    "uvloop>=0.17.0; sys_platform != 'win32'",
+    "faiss-cpu>=1.12.0,<2.0.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/pH-7/ToucanDB"
-Documentation = "https://github.com/pH-7/ToucanDB#readme"
-Repository = "https://github.com/pH-7/ToucanDB.git"
-Issues = "https://github.com/pH-7/ToucanDB/issues"
-Changelog = "https://github.com/pH-7/ToucanDB/releases"
-"Author Website" = "https://ph7.me"
+Homepage = "https://github.com/ToucanDB/ToucanDB"
+Documentation = "https://github.com/ToucanDB/ToucanDB#readme"
+Repository = "https://github.com/ToucanDB/ToucanDB.git"
+Issues = "https://github.com/ToucanDB/ToucanDB/issues"
+Changelog = "https://github.com/ToucanDB/ToucanDB/blob/main/CHANGELOG.md"
+"Author Website" = "https://pierrehenry.dev"
+"Author GitHub" = "https://github.com/pH-7"
+"Author LinkedIn" = "https://www.linkedin.com/in/ph7enry/"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.0.0",
-    "black>=23.0.0",
-    "ruff>=0.1.0",
-    "mypy>=1.5.0",
-    "pre-commit>=3.0.0",
+    "build>=1.2.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
+    "black>=24.0.0",
+    "ruff>=0.9.0",
+    "mypy>=1.10.0",
+    "pre-commit>=4.0.0",
+    "twine>=6.0.0",
 ]
+embeddings = [
+    "sentence-transformers>=5.0.0,<6.0.0",
+]
+# Compatibility alias retained for 1.x installation instructions.
 ml = [
-    "sentence-transformers>=2.2.0",
-    "transformers>=4.20.0",
-    "torch>=2.0.0",
-    "openai>=1.0.0",
-    "cohere>=4.0.0",
-    "langchain>=0.1.0",
-    "datasets>=2.10.0",
+    "sentence-transformers>=5.0.0,<6.0.0",
 ]
-gpu = [
-    "faiss-gpu>=1.7.4",
-    "cupy-cuda12x>=12.0.0",
-    "torch[cuda]>=2.0.0",
+openai = [
+    "openai>=2.0.0,<3.0.0",
 ]
 benchmarks = [
-    "memory-profiler>=0.61.0",
     "psutil>=5.9.0",
-    "matplotlib>=3.7.0",
-    "seaborn>=0.12.0",
 ]
 all = [
-    "sentence-transformers>=2.2.0",
-    "transformers>=4.20.0",
-    "torch>=2.0.0",
-    "openai>=1.0.0",
-    "cohere>=4.0.0",
-    "langchain>=0.1.0",
-    "datasets>=2.10.0",
-    "faiss-gpu>=1.7.4",
-    "cupy-cuda12x>=12.0.0",
-    "memory-profiler>=0.61.0",
-    "psutil>=5.9.0",
-    "matplotlib>=3.7.0",
-    "seaborn>=0.12.0",
+    "sentence-transformers>=5.0.0,<6.0.0",
+    "openai>=2.0.0,<3.0.0",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["toucandb*"]
 
+[tool.setuptools.package-data]
+toucandb = ["py.typed"]
+
 [tool.black]
 line-length = 88
-target-version = ['py39']
+target-version = ['py310']
 
 [tool.ruff]
 line-length = 88
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = [
@@ -128,7 +114,10 @@ select = [
 ]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
+follow_imports = "skip"
+no_site_packages = true
+ignore_missing_imports = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

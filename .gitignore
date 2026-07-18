@@ -4,6 +4,7 @@
 *.tdb
 *_db/
 test_*.py
+!tests/test_*.py
 quick_validation.py
 test_ml_features.py
 test_ml_functionality.py

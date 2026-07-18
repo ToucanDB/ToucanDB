@@ -2,31 +2,31 @@
 
 # Include essential documentation
 include README.md
+include CHANGELOG.md
+include CREDITS.md
 include LICENSE.md
 include CONTRIBUTING.md
+include SECURITY.md
+include RELEASE_NOTES.md
 include *.cff
+recursive-include docs *.md
 
 # Include assets (logos, images)
-recursive-include assets *.png *.jpg *.jpeg *.svg
+recursive-include assets *.png *.jpeg
 
 # Include configuration files
 include pyproject.toml
 
 # Include examples
 recursive-include examples *.py
+recursive-include benchmarks *.py
+
+# Include typing marker
+include toucandb/py.typed
 
 # Include tests
 recursive-include tests *.py
 
-# Include GitHub workflows
-recursive-include .github *.yml *.yaml
-
-# Include scripts
-recursive-include scripts *.py *.md
-
-# Exclude development files
-exclude analyze_toucandb.py
-exclude PUBLISHING.md
-exclude UNSTRUCTURED_DATA_ANALYSIS.md
-exclude test_*.py
-exclude quick_validation.py
+# Exclude repository-only automation from source distributions
+prune .github
+prune scripts

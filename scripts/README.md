@@ -1,53 +1,18 @@
-# 🛠️ Development Scripts
+# Development checks
 
-This directory contains development and maintenance scripts for ToucanDB.
+ToucanDB does not use a self-scored “readiness” script. Release confidence comes
+from executable gates and documented limitations.
 
-## 📋 Available Scripts
-
-### `analyze_project.py`
-**Purpose**: Comprehensive analysis of the ToucanDB codebase structure and ML capabilities.
-
-**Usage**:
-```bash
-python scripts/analyze_project.py
-```
-
-**Features**:
-- ✅ Project structure validation
-- 🔍 Code quality analysis
-- 🧠 ML-first features verification
-- 📦 Dependencies analysis
-- 📖 Examples verification
-- 🎯 Overall readiness assessment
-
-**Example Output**:
-```
-🦜 ToucanDB ML-First Vector Database Analysis
-============================================================
-
-📁 Project Structure Analysis
-------------------------------
-✅ toucandb/__init__.py
-✅ toucandb/types.py
-✅ toucandb/vector_engine.py
-...
-
-🏆 Overall Score: 92.5%
-🎉 EXCELLENT: ToucanDB is a high-quality ML-first vector database!
-```
-
-## 🚀 Running Scripts
-
-All scripts should be run from the project root directory:
+Run from the repository root:
 
 ```bash
-# From ToucanDB project root
-python scripts/analyze_project.py
+ruff check .
+black --check toucandb tests examples benchmarks
+mypy toucandb --ignore-missing-imports
+pytest
+python -m build
+twine check dist/*
 ```
 
-## 📝 Notes
-
-- These scripts are for development use only
-- They are excluded from PyPI package distributions
-- They help maintain code quality and verify ML capabilities
-- Perfect for CI/CD pipeline integration
+Use `benchmarks/benchmark.py` for reproducible local regression measurements.
+The GitHub workflows run the supported Python matrix and trusted publishing.
