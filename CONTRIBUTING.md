@@ -1,358 +1,114 @@
 # Contributing to ToucanDB
 
-Thank you for your interest in contributing to ToucanDB! We welcome contributions from the community and are excited to see what you'll build with us.
+Thank you for helping improve ToucanDB. Changes should preserve its embedded
+boundary: correctness and measured resource use come before feature breadth.
 
-## 🌟 Ways to Contribute
+## Development setup
 
-- **Code**: New features, bug fixes, performance improvements
-- **Documentation**: Improve guides, add examples, fix typos
-- **Testing**: Write tests, report bugs, improve coverage
-- **Design**: UI/UX improvements, logos, diagrams
-- **Community**: Help others, answer questions, write tutorials
+Prerequisites:
 
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Python 3.9 or higher
-- Git
-- Virtual environment (recommended)
-
-### Development Setup
-
-1. **Fork and clone the repository**
-   ```bash
-   git clone https://github.com/pH-7/toucandb.git
-   cd toucandb
-   ```
-
-2. **Create a virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -e ".[dev]"
-   ```
-
-4. **Run tests to verify setup**
-   ```bash
-   pytest tests/ -v
-   ```
-
-5. **Set up pre-commit hooks**
-   ```bash
-   pre-commit install
-   ```
-
-### Project Structure
-
-```
-toucandb/
-├── toucandb/           # Core library code
-│   ├── __init__.py     # Main API
-│   ├── types.py        # Type definitions
-│   ├── exceptions.py   # Custom exceptions
-│   ├── schema.py       # Schema management
-│   └── vector_engine.py # Vector operations
-├── tests/              # Test suite
-├── examples/           # Usage examples
-├── docs/               # Documentation
-└── benchmarks/         # Performance tests
-```
-
-## 📝 Development Guidelines
-
-### Code Style
-
-- **Python**: Follow PEP 8, use Black for formatting
-- **Type hints**: All public APIs must have type annotations
-- **Docstrings**: Use Google-style docstrings
-- **Imports**: Use isort for import organization
-
-### Example Code Style
-
-```python
-from typing import List, Optional, Dict, Any
-from datetime import datetime
-
-class VectorCollection:
-    """A collection of vectors with search capabilities.
-    
-    Args:
-        name: Collection name
-        schema: Vector schema definition
-        storage_path: Path for persistent storage
-        
-    Raises:
-        InvalidSchemaError: If schema is invalid
-        StorageError: If storage initialization fails
-    """
-    
-    def __init__(
-        self, 
-        name: str, 
-        schema: VectorSchema,
-        storage_path: Path
-    ) -> None:
-        self.name = name
-        self.schema = schema
-        self._validate_schema()
-    
-    async def search(
-        self, 
-        query: SearchQuery
-    ) -> OperationResult[List[SearchResult]]:
-        """Search for similar vectors.
-        
-        Args:
-            query: Search parameters and vector
-            
-        Returns:
-            Operation result with search results
-        """
-        # Implementation here
-        pass
-```
-
-### Commit Messages
-
-Use conventional commits format:
-
-```
-type(scope): description
-
-body (optional)
-
-footer (optional)
-```
-
-Types:
-- `feat`: New feature
-- `fix`: Bug fix  
-- `docs`: Documentation changes
-- `style`: Code style changes
-- `refactor`: Code refactoring
-- `test`: Test additions/changes
-- `perf`: Performance improvements
-- `ci`: CI/CD changes
-
-Examples:
-- `feat(search): add metadata filtering support`
-- `fix(storage): resolve memory leak in vector cache`
-- `docs(readme): update installation instructions`
-
-### Testing
-
-- **Unit tests**: Test individual components
-- **Integration tests**: Test component interactions
-- **Performance tests**: Benchmark critical paths
-- **Coverage**: Aim for >90% code coverage
+- Python 3.10 or newer;
+- Git; and
+- a C/C++ compatible platform supported by the `faiss-cpu` wheel.
 
 ```bash
-# Run all tests
+git clone https://github.com/ToucanDB/ToucanDB.git
+cd ToucanDB
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[dev]'
+```
+
+## Required local checks
+
+```bash
+ruff check .
+black --check toucandb tests examples benchmarks scripts
+mypy toucandb --ignore-missing-imports
 pytest
-
-# Run with coverage
-pytest --cov=toucandb --cov-report=html
-
-# Run specific test file
-pytest tests/test_vector_engine.py -v
-
-# Run performance tests
-pytest benchmarks/ -k "performance"
+python -m build
+twine check dist/*
 ```
 
-### Documentation
+Run a fresh-wheel import test for packaging changes. CI repeats tests on Python
+3.10 through 3.14.
 
-- **API docs**: Auto-generated from docstrings
-- **Tutorials**: Step-by-step guides in `docs/`
-- **Examples**: Practical code examples in `examples/`
-- **README**: Keep updated with new features
+## Repository layout
 
-## 🐛 Reporting Issues
-
-### Bug Reports
-
-When reporting bugs, please include:
-
-1. **Environment**:
-   - Python version
-   - ToucanDB version
-   - Operating system
-   - Hardware specs (for performance issues)
-
-2. **Reproduction steps**:
-   - Minimal code example
-   - Expected vs actual behavior
-   - Error messages and stack traces
-
-3. **Additional context**:
-   - Data size/complexity
-   - Performance characteristics
-   - Workarounds tried
-
-### Feature Requests
-
-For new features, please provide:
-
-1. **Use case**: What problem does this solve?
-2. **Proposed solution**: How should it work?
-3. **Alternatives**: Other approaches considered
-4. **Impact**: Who would benefit?
-
-## 🔄 Pull Request Process
-
-### Before Submitting
-
-1. **Create an issue** first to discuss the change
-2. **Fork the repository** and create a feature branch
-3. **Write tests** for new functionality
-4. **Update documentation** as needed
-5. **Run the full test suite**
-6. **Check code style** with pre-commit hooks
-
-### Pull Request Template
-
-```markdown
-## Description
-Brief description of changes
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
-
-## Testing
-- [ ] Added unit tests
-- [ ] Added integration tests
-- [ ] All tests pass
-- [ ] Performance benchmarks (if applicable)
-
-## Documentation
-- [ ] Updated docstrings
-- [ ] Updated README
-- [ ] Added examples
-- [ ] Updated API docs
-
-## Checklist
-- [ ] Code follows style guidelines
-- [ ] Self-review completed
-- [ ] Comments added for complex logic
-- [ ] No breaking changes (or documented)
+```text
+toucandb/                 public package and engine
+toucandb/integrations/    optional-dependency-light adapters
+tests/                    unit and integration tests
+examples/                 runnable examples
+benchmarks/               reproducible regression benchmark
+docs/                     architecture, RAG, migration, and tuning guides
+.github/workflows/        CI and trusted PyPI publishing
 ```
 
-### Review Process
+## Engineering rules
 
-1. **Automated checks**: CI/CD must pass
-2. **Code review**: At least one maintainer approval
-3. **Testing**: Comprehensive test coverage
-4. **Documentation**: Complete and accurate docs
+- Add type annotations to public APIs and keep `py.typed` accurate.
+- Keep imports side-effect free. A library must not configure root logging,
+  event-loop policy, global threads, or network clients at import time.
+- Load large models and optional SDKs lazily.
+- Do not add a core dependency when the standard library or an injected adapter
+  provides the boundary.
+- Validate a logical multi-batch operation before its first durable write.
+- Treat SQLite as authoritative and FAISS as rebuildable.
+- Preserve database compatibility or provide a documented, tested migration.
+- Bound caches and candidate expansion; do not introduce an unbounded queue or
+  resident copy.
+- Include source attribution and authorization boundaries in retrieval work.
+- Never add unverifiable performance claims. Include the benchmark command,
+  hardware, versions, dataset, filters, tuning, and recall method.
 
-## 🎯 Areas for Contribution
+## Tests expected by change type
 
-### High Priority
+- Storage: reopen, interrupted/stale snapshot behavior, backup, ID types, and
+  encryption where relevant.
+- Index: flat ground truth plus index/metric combinations and small-corpus edge
+  cases.
+- RAG/integrations: idempotent sync, changed-content replacement, pruning,
+  namespace or tenant isolation, and provider failure behavior.
+- Async work: prove blocking work is off the event loop or otherwise bounded.
+- Packaging: build sdist/wheel, inspect contents, install the wheel in a clean
+  environment, and import public APIs.
 
-- **Performance optimization**: SIMD, GPU acceleration
-- **Storage formats**: Compression, serialization
-- **Index algorithms**: New search methods
-- **Security features**: Authentication, authorization
-- **Cloud integration**: AWS, GCP, Azure support
+Coverage is a signal, not a substitute for failure-path assertions.
 
-### Medium Priority
+## Pull requests
 
-- **Language bindings**: Rust, Go, JavaScript
-- **Monitoring**: Metrics, observability
-- **Backup/restore**: Data management tools
-- **CLI tools**: Command-line interface
-- **Web interface**: Management dashboard
+1. Open an issue for a large design or on-disk-format change.
+2. Branch from `main`.
+3. Keep commits focused and explain the user-visible outcome.
+4. Add tests and documentation in the same pull request.
+5. Run all required checks.
+6. Include migration, security, memory, and performance consequences in the PR
+   description.
 
-### Documentation Needs
+The PR should state:
 
-- **API reference**: Complete method documentation
-- **Tutorials**: Beginner to advanced guides
-- **Best practices**: Performance, security tips
-- **Deployment guides**: Production setup
-- **Migration guides**: Version upgrade help
+- the problem and chosen boundary;
+- alternatives considered;
+- tests and benchmark commands run;
+- compatibility or migration impact;
+- new dependencies and why they are necessary; and
+- remaining limitations.
 
-## 🏆 Recognition
+## Reporting bugs
 
-Contributors will be:
+Use [GitHub Issues](https://github.com/ToucanDB/ToucanDB/issues). Include a
+minimal reproduction, ToucanDB/Python/FAISS/NumPy versions, operating system and
+architecture, index schema, vector count/dimensions, encryption state, expected
+behavior, and the complete error. Never attach an encryption key or sensitive
+database.
 
-- **Listed**: In CONTRIBUTORS.md
-- **Credited**: In release notes
-- **Featured**: On project website (for major contributions)
-- **Invited**: To join the maintainer team (for ongoing contributors)
+For a suspected vulnerability, follow [SECURITY.md](SECURITY.md) rather than
+opening a public issue.
 
-## 📞 Getting Help
+## Recognition
 
-- **Discussions**: GitHub Discussions for questions
-- **Discord**: Join our community server
-- **Email**: maintainers@toucandb.org
-- **Issues**: GitHub Issues for bugs/features
-
-## 🤝 Code of Conduct
-
-We are committed to providing a welcoming and inclusive environment. Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
-
-### Our Standards
-
-- **Be respectful**: Treat everyone with kindness
-- **Be constructive**: Provide helpful feedback
-- **Be patient**: Support newcomers
-- **Be inclusive**: Welcome diverse perspectives
-
-## 📋 Development Workflow
-
-### Feature Development
-
-1. **Plan**: Create issue and get feedback
-2. **Branch**: Create feature branch from main
-3. **Develop**: Write code with tests
-4. **Test**: Ensure all tests pass
-5. **Document**: Update relevant docs
-6. **Review**: Submit PR for review
-7. **Merge**: Maintainer merges after approval
-
-### Release Process
-
-1. **Version bump**: Update version numbers
-2. **Changelog**: Update CHANGELOG.md
-3. **Testing**: Run full test suite
-4. **Build**: Create release artifacts
-5. **Tag**: Create git tag
-6. **Publish**: Deploy to PyPI
-7. **Announce**: Update documentation and notify community
-
-## 🛠️ Tools and Resources
-
-### Development Tools
-
-- **IDE**: VSCode with Python extension
-- **Linting**: ruff, mypy
-- **Formatting**: black, isort
-- **Testing**: pytest, pytest-cov
-- **Documentation**: mkdocs, mkdocs-material
-
-### Useful Commands
-
-```bash
-# Format code
-black toucandb/ tests/
-isort toucandb/ tests/
-
-# Lint code
-ruff check toucandb/ tests/
-mypy toucandb/
-
-# Build documentation
-mkdocs serve
-
-# Run benchmarks
-python benchmarks/run_benchmarks.py
-```
-
-Thank you for contributing to **ToucanDB**! Together, we're building the future of vector databases 🦜✨
+Material contributors are credited in release notes and, for sustained work,
+in [CREDITS.md](CREDITS.md). ToucanDB was created and is maintained by
+[Pierre-Henry Soria](https://pierrehenry.dev).

@@ -1,180 +1,284 @@
-# 🦜 ToucanDB - Micro ML-First Vector DB Engine
+# 🦜 ToucanDB
 
 **Store, index, and search high-dimensional vector embeddings. Built for RAG systems, semantic search, and LLM applications.**
 
-![ToucanDB Logo](assets/toucandb-logo.png "ML-first vector database engine for LLM applications")
+An embedded, local-first vector database for semantic search, RAG, and
+application memory. ToucanDB combines atomic SQLite persistence with FAISS
+search and does not require a separate database server.
+
+![ToucanDB logo](assets/toucandb-logo.png "ToucanDB vector database")
 
 [![PyPI](https://img.shields.io/pypi/v/toucandb.svg)](https://pypi.org/project/toucandb/)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](https://github.com/pH-7/ToucanDB/tree/main/tests)
-[![LLM Ready](https://img.shields.io/badge/LLM%20ready-✅-brightgreen.svg)](https://github.com/pH-7/ToucanDB)
-[![RAG Support](https://img.shields.io/badge/RAG%20support-✅-brightgreen.svg)](https://github.com/pH-7/ToucanDB)
-[![Vector Search](https://img.shields.io/badge/vector%20search-⚡-blue.svg)](https://github.com/pH-7/ToucanDB)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![CI](https://github.com/ToucanDB/ToucanDB/actions/workflows/ci.yml/badge.svg)](https://github.com/ToucanDB/ToucanDB/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE.md)
 
-ToucanDB is a lightweight, ML-native vector database written in Python. It transforms unstructured data (text, images, audio) into searchable vector embeddings and retrieves them with sub-millisecond precision — without the overhead of a full server deployment.
+## 📋 Main features in version 2
 
-## 📋 Main Features
+- Cosine, dot-product, and Euclidean similarity.
+- Exact flat search and approximate HNSW or IVF indices.
+- SQLite WAL storage with atomic batch writes and safe arbitrary vector IDs.
+- Generation-checked FAISS snapshots with deterministic rebuild after a crash
+  or a cross-architecture restore.
+- Bounded, database-wide LRU cache budgets and automatic tombstone compaction.
+- Optional authenticated encryption with a per-database salt and memory-hard
+  key derivation.
+- Async APIs that move storage, index, and local-model work off the event loop.
+- Stable upserts that do not re-embed unchanged documents.
+- A dependency-free RAG pipeline with chunking, namespace isolation, pruning,
+  source attribution, bounded context, and an injected generator.
+- Lazy Sentence Transformers and OpenAI embedding adapters, plus a generic
+  callable adapter.
+- A tested SimpliXio semantic-signal integration.
 
-- **Semantic Search** — find by meaning, not keywords, using cosine / dot-product / Euclidean distance
-- **HNSW & IVF Indexing** — fast approximate nearest-neighbour search, auto-tuned
-- **AES-256-GCM Encryption** — all vectors and metadata encrypted at rest
-- **Rich Metadata Filtering** — attach and query arbitrary JSON metadata alongside vectors
-- **Async Python API** — fully `async/await`, type-safe with Pydantic schemas
-- **Embedding-model agnostic** — works with OpenAI, Sentence Transformers, Cohere, Hugging Face, or any custom model
-- **Batch operations** — bulk insert / search for high-throughput pipelines
+ToucanDB is an embedded component, not a distributed service. One process owns
+a database directory at a time; a second owner fails fast instead of operating
+on a stale in-memory index.
 
-## 📦 Installation
+## Installation
 
-Available on [PyPI](https://pypi.org/project/toucandb/):
-
-```bash
-pip install toucandb       # pip
-poetry add toucandb        # Poetry
-uv add toucandb            # uv
-pdm add toucandb           # PDM
-```
-
-**Optional extras:**
+ToucanDB 2 requires Python 3.10 or newer.
 
 ```bash
-pip install toucandb[ml]   # + sentence-transformers, OpenAI, LangChain…
-pip install toucandb[gpu]  # + GPU-accelerated FAISS
-pip install toucandb[dev]  # development / testing
+pip install toucandb
 ```
 
-## 🚀 Quick Start
+Install only the integration you use:
+
+```bash
+pip install 'toucandb[embeddings]'  # local Sentence Transformers
+pip install 'toucandb[openai]'      # OpenAI embeddings
+pip install 'toucandb[all]'         # both adapters
+pip install 'toucandb[dev]'         # contributors and release checks
+```
+
+The RAG pipeline itself is in the core package and adds no model or framework
+dependency. The old `ml` extra remains as an alias for `embeddings` during the
+2.x transition. ToucanDB does not publish a `gpu` extra because the upstream
+FAISS GPU wheel has been discontinued; custom FAISS GPU builds are an advanced
+deployment choice.
+
+## RAG quick start
 
 ```python
-from sentence_transformers import SentenceTransformer
-from toucandb import ToucanDB, VectorSchema, DistanceMetric, IndexType
 import asyncio
 
-async def semantic_search_demo():
-    # Load a pre-trained sentence transformer model
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    
-    # Sample documents to embed
-    documents = [
-        "Python is a versatile programming language used in AI and data science.",
-        "Machine learning algorithms can predict patterns from historical data.",
-        "Vector databases enable semantic search and similarity matching.",
-        "Natural language processing helps computers understand human language.",
-        "Deep learning models require large datasets for training.",
-    ]
-    
-    # Generate embeddings
-    embeddings = model.encode(documents)
-    
-    # Initialize ToucanDB
-    db = await ToucanDB.create('./semantic_search.tdb', encryption_key='demo-key')
-    schema = VectorSchema(
-        name='semantic_docs', 
-        dimensions=embeddings.shape[1],  # Auto-detect dimensions
-        metric=DistanceMetric.COSINE, 
-        index_type=IndexType.HNSW
-    )
-    collection = await db.create_collection(schema)
-    
-    # Store documents with embeddings
-    vectors = []
-    for i, (doc, embedding) in enumerate(zip(documents, embeddings)):
-        vectors.append({
-            'id': f'doc_{i}',
-            'vector': embedding.tolist(),
-            'metadata': {'text': doc, 'doc_id': i}
-        })
-    
-    await collection.insert_many(vectors)
-    
-    # Semantic search
-    query = "How does AI process language?"
-    query_embedding = model.encode([query])[0]
-    
-    results = await collection.search(query_embedding.tolist(), k=3)
-    
-    print(f"🔍 Query: '{query}'")
-    print("\n📋 Most similar documents:")
-    for i, result in enumerate(results, 1):
-        print(f"{i}. {result.metadata['text']}")
-        print(f"   📊 Similarity: {result.score:.3f}")
-        print()
+from toucandb import SentenceTransformerEmbeddingProvider
+from toucandb.integrations import RAGDocument, RAGStore
 
-asyncio.run(semantic_search_demo())
+
+async def main() -> None:
+    rag = await RAGStore.create(
+        "./knowledge.tdb",
+        SentenceTransformerEmbeddingProvider("all-MiniLM-L6-v2"),
+        encryption_key="load-this-from-a-secret-store",
+        namespace="product-docs",
+    )
+
+    await rag.sync_documents(
+        [
+            RAGDocument(
+                id="architecture",
+                text="ToucanDB stores records in SQLite and rebuilds FAISS safely.",
+                source="architecture.md",
+                metadata={"project": "ToucanDB"},
+            ),
+            RAGDocument(
+                id="deployment",
+                text="ToucanDB is embedded and needs one owning process.",
+                source="deployment.md",
+                metadata={"project": "ToucanDB"},
+            ),
+        ],
+        prune=True,
+    )
+
+    hits = await rag.retrieve("Does ToucanDB need a database server?", k=3)
+    for hit in hits:
+        print(hit.score, hit.source, hit.text)
+
+    # `answer()` accepts any async object with generate(prompt), or a callable.
+    async def generator(prompt: str) -> str:
+        return await your_llm(prompt)
+
+    answer = await rag.answer(
+        "Does ToucanDB need a database server?",
+        generator,
+    )
+    print(answer.answer)
+    await rag.close()
+
+
+asyncio.run(main())
 ```
 
-More examples in the [`examples/`](examples/) directory (RAG pipeline, document search, semantic search).
+See [the RAG guide](docs/rag.md) and
+[`examples/rag_pipeline.py`](examples/rag_pipeline.py) for a runnable example.
 
-## 🔗 Compatible Embedding Models
+## Raw-vector quick start
 
-| Provider | Model | Dimensions |
+```python
+import asyncio
+
+from toucandb import SearchQuery, ToucanDB, create_schema
+
+
+async def main() -> None:
+    async with await ToucanDB.create("./vectors.tdb") as db:
+        await db.create_collection(
+            create_schema("items", dimensions=3, index_type="hnsw")
+        )
+        result = await db.upsert_vectors(
+            "items",
+            [
+                {
+                    "id": "toucan",
+                    "vector": [0.9, 0.1, 0.2],
+                    "metadata": {"kind": "bird"},
+                },
+                {
+                    "id": "macaw",
+                    "vector": [0.8, 0.2, 0.1],
+                    "metadata": {"kind": "bird"},
+                },
+            ],
+        )
+        if not result.success:
+            raise RuntimeError(result.error_message)
+
+        matches = await db.search_vectors(
+            "items",
+            SearchQuery(
+                vector=[1.0, 0.0, 0.0],
+                k=2,
+                metadata_filter={"kind": "bird"},
+            ),
+        )
+        print(matches.data)
+
+
+asyncio.run(main())
+```
+
+## Architecture and resource use
+
+```text
+application
+   │
+   ├── vectors supplied directly, or lazy embedding provider
+   │
+   ▼
+ToucanDB collection
+   ├── SQLite WAL: durable source of truth and atomic batches
+   ├── FAISS: in-memory search accelerator
+   ├── snapshot manifest: generation + schema verification
+   └── bounded LRU: vectors/metadata loaded by results
+```
+
+The design deliberately avoids a background server, a connection pool, an
+unbounded cache, and eager model loading. SQLite records are authoritative;
+FAISS can always be rebuilt. A clean close writes an index snapshot. A crash
+after a committed data write produces a generation mismatch, so the next open
+rebuilds instead of trusting stale search state.
+
+| Index | Best fit | Trade-off |
 |---|---|---|
-| Sentence Transformers | `all-MiniLM-L6-v2` | 384 |
-| Sentence Transformers | `all-mpnet-base-v2` | 768 |
-| OpenAI | `text-embedding-3-small` | 1536 |
-| Cohere | `embed-english-v3.0` | 1024 |
-| Hugging Face | any `AutoModel` | varies |
+| `flat` | Small collections or exact evaluation | Exact recall; linear search |
+| `hnsw` | Default interactive retrieval | Fast approximate search; extra memory |
+| `ivf` | Larger, batch-oriented corpora | Trained approximate index; tune `nprobe` |
 
-ToucanDB adapts to any embedding dimension — just set `dimensions` in your schema.
+Metadata filters use adaptive candidate expansion. Selective filters may
+require more index work; benchmark with the metadata distribution and recall
+requirements of the real corpus.
 
-## 📈 Performance
+See [architecture](docs/architecture.md),
+[performance guidance](docs/performance.md), and the
+[2.0 migration guide](docs/migration-2.0.md).
 
-| Dataset Size | Search Latency | Throughput | Accuracy (recall) |
-|---|---|---|---|
-| 1M vectors   | 0.2 ms | 150K QPS | 97.5% |
-| 10M vectors  | 0.4 ms | 120K QPS | 96.8% |
-| 100M vectors | 0.8 ms | 80K QPS  | 95.2% |
-| 1B vectors   | 1.2 ms | 50K QPS  | 94.5% |
+## Does it need a backend?
 
-*AWS m5.4xlarge (16 vCPU, 64 GB RAM), 384-dim vectors, HNSW index*
+No backend is required when one Python application owns local data. This is the
+best fit for desktop tools, local agents, evaluation pipelines, private RAG,
+and an application service that embeds ToucanDB in its own process.
 
+A service boundary does make sense when multiple processes or devices need the
+same live index, when API credentials must not ship in a client, or when access
+control and synchronization are server responsibilities. In that scenario,
+run one ToucanDB owner behind the application's API; do not let several workers
+write the same directory.
 
-## 🦜 Why "ToucanDB"? Exploration is everywhere
+For iOS and macOS, the Python wheel is not embedded into the app. SimpliXio uses
+a native Swift runtime built from Apple Natural Language, SQLite WAL,
+Accelerate, and actor isolation. It synchronizes source records rather than
+model-specific vectors and needs no backend for an on-device-only experience.
+See [Apple integration](docs/apple-integration.md).
 
-Just like the vibrant toucan bird, ToucanDB embodies the perfect combination of precision, adaptability, and intelligence that makes it exceptional for ML applications. Birds are my favourite animals, and toucans are one of my favourites! I've always been inspired by toucans. My grandfather was an ethnologist and explorer in the Amazon rainforest. He also discovered the Jora tribe. My grandparents even spent their honeymoon in the Amazon rainforest and lived in various Latin American countries for quite some time with my grandmother and my mum. His life has deeply inspired me since I was little, and my love for toucans is part of this beautiful legacy. Nature has always played a hugely positive role in my success.
+## Security boundary
 
-![Why it's called ToucanDB](assets/why-its-called-toucandb.jpeg "The inspiration behind ToucanDB - Pierre-Henry with toucans, showing the precision and adaptability that inspired the database")
+Pass an encryption key only from a keychain, secret manager, or environment
+owned by the host application—never hard-code it. Encryption covers vector and
+metadata payloads. Collection names, vector IDs, hashed record keys, SQLite
+structure, and index snapshots are not encrypted. If whole-index
+confidentiality matters, rely on full-disk/platform data protection as well. A
+lost encryption key cannot be recovered.
 
-### The Toucan Inspiration
+Retrieved RAG text is untrusted input. `RAGStore.answer()` tells the generator
+to treat sources as data, but the host application must still apply its normal
+prompt-injection, authorization, sensitivity, and output controls.
 
-🎯 **Precision**: Toucans have incredibly precise beaks that can reach exactly where they need to go - just like ToucanDB's vector search that finds exactly the right data points with sub-millisecond accuracy.
+## Performance claims
 
-🔄 **Adaptability**: These remarkable birds adapt to diverse environments and data sources - mirroring how ToucanDB seamlessly handles any type of unstructured data (text, images, audio, code).
+ToucanDB does not claim a universal latency, throughput, or corpus-size number.
+Results depend on hardware, dimensions, index type, vector count, filters,
+encryption, and recall targets. The repository includes a reproducible local
+benchmark command; publish the full configuration with any reported result.
 
-🧠 **Intelligence**: Toucans are highly intelligent creatures with excellent memory - reflecting ToucanDB's smart caching, adaptive indexing, and ML-first design that learns and optimizes performance.
+```bash
+python benchmarks/benchmark.py --vectors 10000 --dimensions 384 --index hnsw
+```
 
-🌈 **Vibrancy**: The toucan's colorful nature represents ToucanDB's rich feature set and the diverse, multimodal data it can process and understand.
+## SimpliXio integration
 
-Just as toucans navigate complex forest ecosystems with ease, ToucanDB navigates the complex landscape of high-dimensional vector spaces, making ML applications soar! 🚀
+`SimplixioSignalMemory` indexes stable SimpliXio signal IDs, skips unchanged
+embeddings, filters by project, and prunes deleted records with a bulk
+transaction. SimpliXio keeps deterministic product ranking and sensitivity
+rules as the source of truth; ToucanDB supplies semantic candidates.
 
-## 👨‍💻 Who Built This Vector Database Engine?
+See [the reviewed use case](docs/real-project-use-cases.md) and
+[`examples/simplixio_signal_memory.py`](examples/simplixio_signal_memory.py).
 
-**Pierre-Henry Soria** — a **super passionate engineer** who loves building cutting-edge AI infrastructure and automating intelligent systems efficiently!
+## Project status and limits
 
-Enthusiast of Machine Learning, Vector Databases, AI, and writing performant code!
+ToucanDB 2 is a beta embedded engine. It is not a distributed vector database,
+does not provide HTTP/authentication/multi-tenancy by itself, and does not yet
+provide a transactional metadata secondary index. Equality metadata filters
+are supported. Validate recall and failure behavior with representative data
+before relying on it for a high-stakes production workflow.
 
-**Find me at [pH7.me](https://ph7.me)**
+## Author and credits
 
-Enjoying this project? **[Buy me a coffee](https://ko-fi.com/phenry)** (spoiler: I love almond extra-hot flat white coffees while coding ML algorithms).
+ToucanDB was created and is maintained by **Pierre-Henry Soria**:
 
-[![Pierre-Henry Soria](https://s.gravatar.com/avatar/a210fe61253c43c869d71eaed0e90149?s=200)](https://ph7.me "Pierre-Henry Soria's personal website")
+- Website: [pierrehenry.dev](https://pierrehenry.dev)
+- GitHub: [github.com/pH-7](https://github.com/pH-7)
+- LinkedIn: [linkedin.com/in/ph7enry](https://www.linkedin.com/in/ph7enry/)
 
-[![@phenrysay][x-icon]](https://x.com/phenrysay "Follow Me on X") [![YouTube Tech Videos][youtube-icon]](https://www.youtube.com/@pH7Programming "My YouTube Tech Channel") [![pH-7][github-icon]](https://github.com/pH-7 "Follow Me on GitHub") [![BlueSky][bsky-icon]](https://bsky.app/profile/pierrehenry.dev "Follow Me on BlueSky")
+Additional acknowledgements and citation details are in
+[CREDITS.md](CREDITS.md) and [CITATION.cff](CITATION.cff).
 
-## 🤝 Contributing
+## Why “ToucanDB”?
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+Toucans reflect the project’s aim: precise retrieval, adaptability across data
+sources, and a vivid local-first identity. Pierre-Henry’s family history in the
+Amazon and lifelong love of birds inspired the name.
 
-## 📄 License
+![Pierre-Henry with toucans](assets/why-its-called-toucandb.jpeg "Why ToucanDB is named after toucans")
 
-ToucanDB is released under the MIT License. See [license](LICENSE.md) for further details.
+## Contributing and license
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow. ToucanDB is
+released under the [MIT License](LICENSE.md).
 
 ---
 
 **Built with ❤️ for the AI community**
-
-<!-- GitHub's Markdown reference links -->
-[x-icon]: https://img.shields.io/badge/x-000000?style=for-the-badge&logo=x
-[bsky-icon]: https://img.shields.io/badge/BlueSky-00A8E8?style=for-the-badge&logo=bluesky&logoColor=white
-[github-icon]: https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white
-[youtube-icon]: https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white
