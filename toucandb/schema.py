@@ -7,10 +7,12 @@ It ensures type safety and data consistency across the database.
 
 import hashlib
 import json
+import os
+import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 from .exceptions import InvalidSchemaError, StorageError, ValidationError
 from .types import (
@@ -27,7 +29,7 @@ class SchemaVersion:
     version: int
     schema: VectorSchema
     created_at: datetime
-    migration_notes: Optional[str] = None
+    migration_notes: str | None = None
     is_active: bool = True
 
 
@@ -65,7 +67,8 @@ class SchemaManager:
         self, collection_name: str, schema: VectorSchema, overwrite: bool = False
     ) -> SchemaVersion:
         """Create a new schema for a collection."""
-        if not overwrite and collection_name in self._schema_cache:
+        existing = self._schema_cache.get(collection_name)
+        if not overwrite and existing is not None and existing.is_active:
             raise InvalidSchemaError(
                 f"Schema for collection '{collection_name}' already exists",
                 {"collection_name": collection_name},
@@ -80,7 +83,10 @@ class SchemaManager:
             version = self._schema_cache[collection_name].version + 1
 
         schema_version = SchemaVersion(
-            version=version, schema=schema, created_at=datetime.utcnow(), is_active=True
+            version=version,
+            schema=schema,
+            created_at=datetime.now(timezone.utc),
+            is_active=True,
         )
 
         # Save to disk
@@ -91,13 +97,13 @@ class SchemaManager:
 
         return schema_version
 
-    def get_schema(self, collection_name: str) -> Optional[VectorSchema]:
+    def get_schema(self, collection_name: str) -> VectorSchema | None:
         """Get the current schema for a collection."""
         if collection_name in self._schema_cache:
             return self._schema_cache[collection_name].schema
         return None
 
-    def get_schema_version(self, collection_name: str) -> Optional[SchemaVersion]:
+    def get_schema_version(self, collection_name: str) -> SchemaVersion | None:
         """Get the current schema version for a collection."""
         return self._schema_cache.get(collection_name)
 
@@ -107,10 +113,19 @@ class SchemaManager:
             name for name, version in self._schema_cache.items() if version.is_active
         ]
 
-    def delete_schema(self, collection_name: str) -> bool:
-        """Delete a schema (mark as inactive)."""
+    def delete_schema(self, collection_name: str, *, purge: bool = False) -> bool:
+        """Deactivate a schema, or remove it completely when ``purge`` is set."""
         if collection_name not in self._schema_cache:
             return False
+
+        if purge:
+            schema_file = self.schemas_path / f"{collection_name}.json"
+            try:
+                schema_file.unlink(missing_ok=True)
+            except Exception as exc:
+                raise StorageError("delete", str(schema_file), str(exc)) from exc
+            del self._schema_cache[collection_name]
+            return True
 
         schema_version = self._schema_cache[collection_name]
         schema_version.is_active = False
@@ -124,7 +139,7 @@ class SchemaManager:
         self,
         collection_name: str,
         vector_data: list[float],
-        metadata: Optional[MetadataDict] = None,
+        metadata: MetadataDict | None = None,
     ) -> bool:
         """Validate a vector against its collection schema."""
         schema = self.get_schema(collection_name)
@@ -201,7 +216,7 @@ class SchemaManager:
 
     def _check_type(self, value: Any, expected_type: str) -> bool:
         """Check if a value matches the expected type."""
-        type_map: dict[str, Union[type, tuple[type, ...]]] = {
+        type_map: dict[str, type | tuple[type, ...]] = {
             "string": str,
             "integer": int,
             "float": (int, float),
@@ -213,6 +228,11 @@ class SchemaManager:
         if expected_type == "datetime":
             return isinstance(value, (str, datetime))
 
+        if expected_type == "integer":
+            return isinstance(value, int) and not isinstance(value, bool)
+        if expected_type == "float":
+            return isinstance(value, (int, float)) and not isinstance(value, bool)
+
         expected = type_map.get(expected_type)
         if expected:
             return isinstance(value, expected)
@@ -222,32 +242,39 @@ class SchemaManager:
     def _save_schema(self, collection_name: str, schema_version: SchemaVersion) -> None:
         """Save schema to disk."""
         schema_file = self.schemas_path / f"{collection_name}.json"
+        temporary = schema_file.with_name(f".{schema_file.name}.{uuid.uuid4().hex}.tmp")
 
         data = {
             "version": schema_version.version,
-            "schema": schema_version.schema.model_dump(),
+            "schema": schema_version.schema.model_dump(mode="json"),
             "created_at": schema_version.created_at.isoformat(),
             "migration_notes": schema_version.migration_notes,
             "is_active": schema_version.is_active,
         }
 
         try:
-            with open(schema_file, "w") as f:
-                json.dump(data, f, indent=2)
+            payload = json.dumps(data, indent=2).encode("utf-8")
+            with open(temporary, "xb") as file_handle:
+                file_handle.write(payload)
+                file_handle.flush()
+                os.fsync(file_handle.fileno())
+            os.replace(temporary, schema_file)
         except Exception as e:
             raise StorageError(
                 "write",
                 str(schema_file),
                 f"Failed to save schema: {e}",
             ) from e
+        finally:
+            temporary.unlink(missing_ok=True)
 
-    def get_schema_hash(self, collection_name: str) -> Optional[str]:
+    def get_schema_hash(self, collection_name: str) -> str | None:
         """Get a hash of the current schema for integrity checking."""
         schema = self.get_schema(collection_name)
         if not schema:
             return None
 
-        schema_dict = schema.model_dump()
+        schema_dict = schema.model_dump(mode="json")
         schema_str = json.dumps(schema_dict, sort_keys=True)
         return hashlib.sha256(schema_str.encode()).hexdigest()
 
@@ -255,7 +282,7 @@ class SchemaManager:
         self,
         collection_name: str,
         new_schema: VectorSchema,
-        migration_notes: Optional[str] = None,
+        migration_notes: str | None = None,
     ) -> SchemaVersion:
         """Migrate a schema to a new version."""
         current_version = self.get_schema_version(collection_name)
@@ -271,7 +298,7 @@ class SchemaManager:
         new_version = SchemaVersion(
             version=current_version.version + 1,
             schema=new_schema,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             migration_notes=migration_notes,
             is_active=True,
         )
@@ -308,7 +335,7 @@ class SchemaManager:
             # This is allowed but will trigger reindexing
             pass
 
-    def get_collection_info(self, collection_name: str) -> Optional[dict[str, Any]]:
+    def get_collection_info(self, collection_name: str) -> dict[str, Any] | None:
         """Get comprehensive information about a collection."""
         schema_version = self.get_schema_version(collection_name)
         if not schema_version:
@@ -327,14 +354,14 @@ class SchemaManager:
     def export_schemas(self, output_path: Path) -> None:
         """Export all schemas to a single file."""
         export_data: dict[str, Any] = {
-            "export_timestamp": datetime.utcnow().isoformat(),
+            "export_timestamp": datetime.now(timezone.utc).isoformat(),
             "schemas": {},
         }
 
         for collection_name, schema_version in self._schema_cache.items():
             export_data["schemas"][collection_name] = {
                 "version": schema_version.version,
-                "schema": schema_version.schema.model_dump(),
+                "schema": schema_version.schema.model_dump(mode="json"),
                 "created_at": schema_version.created_at.isoformat(),
                 "migration_notes": schema_version.migration_notes,
                 "is_active": schema_version.is_active,

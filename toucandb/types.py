@@ -5,18 +5,21 @@ This module defines the fundamental types used throughout ToucanDB,
 including vector representations, metadata structures, and search results.
 """
 
+from __future__ import annotations
+
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Generic, Literal, Optional, TypeVar, Union
+from typing import Any, Generic, Literal, TypeVar
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Type aliases for clarity
-VectorData = Union[list[float], "np.ndarray[Any, Any]"]
+VectorData = list[float] | np.ndarray[Any, Any]
 MetadataDict = dict[str, Any]
-VectorId = Union[str, int]
+VectorId = str | int
 
 T = TypeVar("T")
 
@@ -65,7 +68,7 @@ class Vector:
     """Represents a single vector with metadata."""
 
     id: VectorId
-    data: "np.ndarray[Any, Any]"
+    data: np.ndarray[Any, Any]
     metadata: MetadataDict
     timestamp: datetime
 
@@ -79,7 +82,7 @@ class Vector:
         """Get the number of dimensions in the vector."""
         return len(self.data)
 
-    def normalize(self) -> "Vector":
+    def normalize(self) -> Vector:
         """Return a normalized copy of the vector."""
         norm = np.linalg.norm(self.data)
         if norm > 0:
@@ -111,9 +114,22 @@ class VectorSchema(BaseModel):
     ivf_nlist: int = Field(default=1024, gt=0)
 
     # Storage parameters
-    max_vectors: Optional[int] = Field(default=None, gt=0)
+    max_vectors: int | None = Field(default=None, gt=0)
     enable_metadata_index: bool = Field(default=True)
-    metadata_schema: Optional[dict[str, str]] = Field(default=None)
+    metadata_schema: dict[str, str] | None = Field(default=None)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        """Keep collection names portable and safe as directory names."""
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", value):
+            raise ValueError(
+                "Collection names must be 1-128 characters and contain only "
+                "letters, numbers, '.', '_' or '-'"
+            )
+        if value in {".", ".."}:
+            raise ValueError("Collection name cannot be '.' or '..'")
+        return value
 
     @field_validator("dimensions")
     @classmethod
@@ -122,18 +138,46 @@ class VectorSchema(BaseModel):
             raise ValueError("Dimensions cannot exceed 10,000")
         return v
 
+    @model_validator(mode="after")
+    def validate_supported_configuration(self) -> VectorSchema:
+        """Reject advertised-but-unimplemented combinations at creation time."""
+        supported_metrics = {
+            DistanceMetric.COSINE,
+            DistanceMetric.EUCLIDEAN,
+            DistanceMetric.DOT_PRODUCT,
+        }
+        supported_indices = {IndexType.FLAT, IndexType.HNSW, IndexType.IVF}
+        supported_compression = {CompressionType.NONE, CompressionType.LZ4}
+        supported_quantization = {
+            QuantizationType.NONE,
+            QuantizationType.FP16,
+            QuantizationType.INT8,
+        }
+
+        if self.metric not in supported_metrics:
+            raise ValueError(f"Unsupported distance metric: {self.metric.value}")
+        if self.index_type not in supported_indices:
+            raise ValueError(f"Unsupported index type: {self.index_type.value}")
+        if self.compression not in supported_compression:
+            raise ValueError(f"Unsupported compression type: {self.compression.value}")
+        if self.quantization not in supported_quantization:
+            raise ValueError(
+                f"Unsupported quantization type: {self.quantization.value}"
+            )
+        return self
+
 
 @dataclass
 class SearchResult:
     """Result from a vector similarity search."""
 
     id: VectorId
-    vector: Optional[np.ndarray]
+    vector: np.ndarray | None
     score: float
     metadata: MetadataDict
     distance: float
 
-    def __lt__(self, other: "SearchResult") -> bool:
+    def __lt__(self, other: SearchResult) -> bool:
         """Enable sorting by score (higher is better)."""
         return self.score > other.score
 
@@ -143,18 +187,22 @@ class SearchQuery(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    vector: Union[list[float], np.ndarray[Any, Any]] = Field(
-        ..., description="Query vector"
-    )
+    vector: list[float] | np.ndarray[Any, Any] = Field(..., description="Query vector")
     k: int = Field(default=10, gt=0, le=1000, description="Number of results")
-    threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    threshold: float | None = Field(
+        default=None,
+        description=(
+            "Minimum similarity score. Dot-product scores are not limited to "
+            "the [0, 1] interval."
+        ),
+    )
     include_vectors: bool = Field(default=False)
     include_metadata: bool = Field(default=True)
-    metadata_filter: Optional[dict[str, Any]] = Field(default=None)
+    metadata_filter: dict[str, Any] | None = Field(default=None)
 
     # Search parameters
-    ef: Optional[int] = Field(default=None, gt=0)  # HNSW search parameter
-    nprobe: Optional[int] = Field(default=None, gt=0)  # IVF search parameter
+    ef: int | None = Field(default=None, gt=0)  # HNSW search parameter
+    nprobe: int | None = Field(default=None, gt=0)  # IVF search parameter
 
 
 class InsertRequest(BaseModel):
@@ -199,28 +247,18 @@ class DatabaseConfig(BaseModel):
 
     class StorageConfig(BaseModel):
         path: str = Field(..., description="Database storage path")
-        compression: CompressionType = Field(default=CompressionType.LZ4)
-        encryption_key: Optional[str] = Field(default=None)
-        backup_interval_seconds: int = Field(default=3600, gt=0)
-        max_file_size_mb: int = Field(default=1024, gt=0)
+        encryption_key: str | None = Field(default=None, exclude=True, repr=False)
 
     class MemoryConfig(BaseModel):
-        cache_size_mb: int = Field(default=512, gt=0)
-        enable_memory_mapping: bool = Field(default=True)
-        preload_collections: bool = Field(default=False)
-        gc_threshold: float = Field(default=0.8, gt=0.0, le=1.0)
+        cache_size_mb: int = Field(default=64, ge=0)
 
     class SecurityConfig(BaseModel):
-        enable_encryption: bool = Field(default=True)
-        enable_audit_logging: bool = Field(default=True)
-        api_key_required: bool = Field(default=False)
-        max_connections: int = Field(default=100, gt=0)
+        enable_encryption: bool = Field(default=False)
 
     class PerformanceConfig(BaseModel):
-        num_workers: int = Field(default=4, gt=0)
-        enable_simd: bool = Field(default=True)
-        batch_size: int = Field(default=1000, gt=0)
-        auto_optimize_indices: bool = Field(default=True)
+        index_snapshot_interval: int = Field(default=10_000, gt=0)
+        compaction_min_tombstones: int = Field(default=64, gt=0)
+        compaction_ratio: float = Field(default=0.20, gt=0.0, le=1.0)
 
     storage: StorageConfig
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
@@ -249,22 +287,22 @@ class OperationResult(Generic[T]):
     """Generic result wrapper for operations."""
 
     success: bool
-    data: Optional[T] = None
-    error_code: Optional[ErrorCode] = None
-    error_message: Optional[str] = None
+    data: T | None = None
+    error_code: ErrorCode | None = None
+    error_message: str | None = None
     execution_time_ms: float = 0.0
 
     @classmethod
     def success_result(
         cls, data: T, execution_time_ms: float = 0.0
-    ) -> "OperationResult[T]":
+    ) -> OperationResult[T]:
         """Create a successful operation result."""
         return cls(success=True, data=data, execution_time_ms=execution_time_ms)
 
     @classmethod
     def error_result(
         cls, error_code: ErrorCode, error_message: str, execution_time_ms: float = 0.0
-    ) -> "OperationResult[T]":
+    ) -> OperationResult[T]:
         """Create an error operation result."""
         return cls(
             success=False,
@@ -303,4 +341,4 @@ class BatchDelete(BatchOperation):
     ids: list[VectorId]
 
 
-BatchOperationType = Union[BatchInsert, BatchUpdate, BatchDelete]
+BatchOperationType = BatchInsert | BatchUpdate | BatchDelete
