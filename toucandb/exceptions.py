@@ -6,7 +6,7 @@ providing clear error handling and debugging information.
 """
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from .types import ErrorCode
 
@@ -17,8 +17,8 @@ class ToucanDBException(Exception):
     def __init__(
         self,
         message: str,
-        error_code: Optional[ErrorCode] = None,
-        details: Optional[dict[str, Any]] = None,
+        error_code: ErrorCode | None = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(message)
         self.message = message
@@ -65,7 +65,7 @@ class VectorNotFoundError(ToucanDBException):
 class DimensionMismatchError(ToucanDBException):
     """Raised when vector dimensions don't match the schema."""
 
-    def __init__(self, expected: int, actual: int, vector_id: Optional[str] = None):
+    def __init__(self, expected: int, actual: int, vector_id: str | None = None):
         message = f"Dimension mismatch: expected {expected}, got {actual}"
         if vector_id:
             message += f" for vector '{vector_id}'"
@@ -84,7 +84,7 @@ class DimensionMismatchError(ToucanDBException):
 class InvalidSchemaError(ToucanDBException):
     """Raised when a schema is invalid or incompatible."""
 
-    def __init__(self, reason: str, schema_details: Optional[dict[str, Any]] = None):
+    def __init__(self, reason: str, schema_details: dict[str, Any] | None = None):
         super().__init__(
             f"Invalid schema: {reason}",
             ErrorCode.INVALID_SCHEMA,
@@ -128,7 +128,7 @@ class IndexError(ToucanDBException):
 class MemoryError(ToucanDBException):
     """Raised when memory-related operations fail."""
 
-    def __init__(self, operation: str, reason: str, memory_usage: Optional[int] = None):
+    def __init__(self, operation: str, reason: str, memory_usage: int | None = None):
         super().__init__(
             f"Memory error during {operation}: {reason}",
             ErrorCode.MEMORY_ERROR,
@@ -139,7 +139,7 @@ class MemoryError(ToucanDBException):
 class PermissionDeniedError(ToucanDBException):
     """Raised when access is denied due to insufficient permissions."""
 
-    def __init__(self, operation: str, resource: str, user_id: Optional[str] = None):
+    def __init__(self, operation: str, resource: str, user_id: str | None = None):
         message = f"Permission denied for {operation} on '{resource}'"
         if user_id:
             message += f" by user '{user_id}'"
@@ -208,7 +208,7 @@ class BatchOperationError(ToucanDBException):
         operation_type: str,
         failed_items: int,
         total_items: int,
-        errors: Optional[list] = None,
+        errors: list | None = None,
     ):
         super().__init__(
             f"Batch {operation_type} failed: {failed_items}/{total_items} items failed",

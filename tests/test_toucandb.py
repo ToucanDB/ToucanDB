@@ -9,16 +9,15 @@ Comprehensive tests for ToucanDB functionality including:
 - Error handling
 """
 
-import pytest
-import tempfile
-import shutil
 import asyncio
-from pathlib import Path
-from typing import List, Dict, Any
+import shutil
+import tempfile
 
-from toucandb import ToucanDB, VectorSchema, SearchQuery, create_schema
+import pytest
+
+from toucandb import SearchQuery, ToucanDB, VectorSchema, create_schema
+from toucandb.exceptions import CollectionNotFoundError
 from toucandb.types import DistanceMetric, IndexType
-from toucandb.exceptions import CollectionNotFoundError, DimensionMismatchError
 
 
 class TestToucanDB:
@@ -28,7 +27,7 @@ class TestToucanDB:
     async def temp_db(self):
         """Create a temporary database for testing."""
         temp_dir = tempfile.mkdtemp()
-        db = await ToucanDB.create(temp_dir, encryption_key="test-key-123")
+        db = await ToucanDB.create(temp_dir)
         yield db
         await db.close()
         shutil.rmtree(temp_dir)
@@ -37,10 +36,7 @@ class TestToucanDB:
     def sample_schema(self):
         """Create a sample schema for testing."""
         return create_schema(
-            name="test_collection",
-            dimensions=128,
-            metric="cosine",
-            index_type="hnsw"
+            name="test_collection", dimensions=128, metric="cosine", index_type="hnsw"
         )
 
     @pytest.fixture
@@ -51,15 +47,17 @@ class TestToucanDB:
         vectors = []
         for i in range(100):
             vector_data = np.random.rand(128).tolist()
-            vectors.append({
-                "id": f"vec_{i}",
-                "vector": vector_data,
-                "metadata": {
-                    "category": "test",
-                    "index": i,
-                    "group": "A" if i % 2 == 0 else "B"
+            vectors.append(
+                {
+                    "id": f"vec_{i}",
+                    "vector": vector_data,
+                    "metadata": {
+                        "category": "test",
+                        "index": i,
+                        "group": "A" if i % 2 == 0 else "B",
+                    },
                 }
-            })
+            )
         return vectors
 
     async def test_database_creation(self, temp_db):
@@ -67,7 +65,7 @@ class TestToucanDB:
         assert temp_db is not None
 
         info = temp_db.get_database_info()
-        assert info["version"] == "1.0.0"
+        assert info["version"] == "2.0.0"
         assert info["total_collections"] == 0
         assert info["total_vectors"] == 0
 
@@ -115,10 +113,7 @@ class TestToucanDB:
         # Perform search
         query_vector = sample_vectors[0]["vector"]
         query = SearchQuery(
-            vector=query_vector,
-            k=5,
-            include_metadata=True,
-            threshold=0.5
+            vector=query_vector, k=5, include_metadata=True, threshold=0.5
         )
 
         result = await temp_db.search_vectors("test_collection", query)
@@ -136,7 +131,7 @@ class TestToucanDB:
         wrong_vector = {
             "id": "wrong_dim",
             "vector": [1.0, 2.0],  # Only 2 dimensions instead of 128
-            "metadata": {}
+            "metadata": {},
         }
 
         result = await temp_db.insert_vectors("test_collection", [wrong_vector])
@@ -154,7 +149,7 @@ class TestToucanDB:
             vector=sample_vectors[0]["vector"],
             k=10,
             include_metadata=True,
-            metadata_filter={"group": "A"}
+            metadata_filter={"group": "A"},
         )
 
         result = await temp_db.search_vectors("test_collection", query)
@@ -217,7 +212,7 @@ class TestToucanDB:
         tasks = [
             temp_db.insert_vectors("test_collection", batch1),
             temp_db.insert_vectors("test_collection", batch2),
-            temp_db.insert_vectors("test_collection", batch3)
+            temp_db.insert_vectors("test_collection", batch3),
         ]
 
         results = await asyncio.gather(*tasks)
@@ -236,10 +231,7 @@ class TestVectorSchema:
     def test_schema_creation(self):
         """Test basic schema creation."""
         schema = create_schema(
-            name="test",
-            dimensions=512,
-            metric="euclidean",
-            index_type="ivf"
+            name="test", dimensions=512, metric="euclidean", index_type="ivf"
         )
 
         assert schema.name == "test"
@@ -254,7 +246,7 @@ class TestVectorSchema:
             name="valid",
             dimensions=128,
             metric=DistanceMetric.COSINE,
-            index_type=IndexType.HNSW
+            index_type=IndexType.HNSW,
         )
         assert schema.dimensions == 128
 
@@ -264,7 +256,7 @@ class TestVectorSchema:
                 name="invalid",
                 dimensions=-1,  # Invalid
                 metric=DistanceMetric.COSINE,
-                index_type=IndexType.HNSW
+                index_type=IndexType.HNSW,
             )
 
 
@@ -338,11 +330,13 @@ class TestPerformance:
         vectors = []
         for i in range(num_vectors):
             vector_data = np.random.rand(256).tolist()
-            vectors.append({
-                "id": f"large_vec_{i}",
-                "vector": vector_data,
-                "metadata": {"batch": i // 100}
-            })
+            vectors.append(
+                {
+                    "id": f"large_vec_{i}",
+                    "vector": vector_data,
+                    "metadata": {"batch": i // 100},
+                }
+            )
 
         # Insert in batches
         result = await temp_db.insert_vectors("large_test", vectors, batch_size=100)
@@ -366,11 +360,13 @@ class TestPerformance:
         vectors = []
         for i in range(500):
             vector_data = np.random.rand(128).tolist()
-            vectors.append({
-                "id": f"perf_vec_{i}",
-                "vector": vector_data,
-                "metadata": {"group": i % 10}
-            })
+            vectors.append(
+                {
+                    "id": f"perf_vec_{i}",
+                    "vector": vector_data,
+                    "metadata": {"group": i % 10},
+                }
+            )
 
         await temp_db.insert_vectors("perf_test", vectors)
 
@@ -392,7 +388,7 @@ class TestPerformance:
             vector=query_vector,
             k=20,
             include_metadata=True,
-            metadata_filter={"group": 5}
+            metadata_filter={"group": 5},
         )
         result3 = await temp_db.search_vectors("perf_test", query3)
         assert result3.success
