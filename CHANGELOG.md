@@ -15,6 +15,8 @@ All notable changes to ToucanDB are documented here. The project follows
 - Cross-process single-owner locking.
 - Dependency-free `RAGStore`, deterministic chunking, namespace pruning,
   attributed retrieval, bounded context, and generator orchestration.
+- Observable `RAGPipeline` stage traces, optional postprocessing, reviewed
+  retrieval metrics, and bounded namespace-isolated FAISS topic discovery.
 - Lazy Sentence Transformers, OpenAI, and callable embedding providers.
 - Embedding/model-aware no-op document upserts.
 - Bulk vector deletion and SimpliXio bulk pruning.

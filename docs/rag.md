@@ -130,6 +130,27 @@ A sync/async callable is accepted as well. Context blocks are numbered, source
 attributed, and bounded. The default prompt requires evidence citations and
 treats retrieved source text as untrusted data.
 
+## Trace, postprocess, and evaluate
+
+Wrap the store in `RAGPipeline` when the application needs content-free stage
+timings, a monitored postprocessor, reviewed recall/MRR evaluation, or optional
+FAISS topic discovery:
+
+```python
+from toucandb.integrations import RAGPipeline
+
+pipeline = RAGPipeline(rag)
+result = await pipeline.run(question, generator)
+
+print(result.answer.answer)
+print(result.trace.stages)
+```
+
+The trace excludes raw questions, prompts, context, and answers. It includes
+retrieved IDs for reproducibility, so treat it as sensitive provenance. See
+[Observable LLM pipelines and FAISS discovery](llm-pipelines.md) for evaluation,
+clustering, backend decisions, and the SimpliXio deployment model.
+
 ## Safety and evaluation
 
 - Enforce authorization and sensitivity filters before retrieval; semantic

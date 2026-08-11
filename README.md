@@ -27,6 +27,8 @@ search and does not require a separate database server.
 - Stable upserts that do not re-embed unchanged documents.
 - A dependency-free RAG pipeline with chunking, namespace isolation, pruning,
   source attribution, bounded context, and an injected generator.
+- Privacy-safe pipeline traces, reviewed retrieval evaluation, and optional
+  bounded FAISS topic discovery.
 - Lazy Sentence Transformers and OpenAI embedding adapters, plus a generic
   callable adapter.
 - A tested SimpliXio semantic-signal integration.
@@ -114,6 +116,8 @@ asyncio.run(main())
 
 See [the RAG guide](docs/rag.md) and
 [`examples/rag_pipeline.py`](examples/rag_pipeline.py) for a runnable example.
+Production tracing, recall/MRR evaluation, postprocessing, and semantic
+clustering are covered in [the LLM pipeline guide](docs/llm-pipelines.md).
 
 ## Raw-vector quick start
 
@@ -193,7 +197,9 @@ requirements of the real corpus.
 
 See [architecture](docs/architecture.md),
 [performance guidance](docs/performance.md), and the
-[2.0 migration guide](docs/migration-2.0.md).
+[2.0 migration guide](docs/migration-2.0.md). FAISS topic discovery is a
+separate, non-persistent analysis operation; IVF's internal centroids are search
+partitions and should not be treated as product labels.
 
 ## Does it need a backend?
 
