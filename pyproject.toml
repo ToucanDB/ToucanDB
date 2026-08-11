@@ -82,6 +82,9 @@ openai = [
 benchmarks = [
     "psutil>=5.9.0",
 ]
+media = [
+    "pillow>=10.0.0",
+]
 all = [
     "sentence-transformers>=5.0.0,<6.0.0",
     "openai>=2.0.0,<3.0.0",
