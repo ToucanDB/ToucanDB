@@ -10,6 +10,8 @@ Highlights:
 - stable, model-aware document synchronization that skips unchanged embeddings;
 - local Sentence Transformers, OpenAI, and custom embedding adapters;
 - first-class RAG retrieval and a tested SimpliXio semantic-memory adapter;
+- privacy-conscious pipeline traces, retrieval evaluation, and optional FAISS
+  semantic topic discovery;
 - materially smaller core dependency graph;
 - Python 3.10–3.14 support; and
 - explicit single-owner, security, performance, Apple, and migration guidance.
