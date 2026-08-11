@@ -2,11 +2,17 @@
 
 **Store, index, and search high-dimensional vector embeddings. Built for RAG systems, semantic search, and LLM applications.**
 
+<p align="center">
+  <a href="assets/promo/toucandb-promo.mp4">
+    <img src="assets/promo/toucandb-promo-poster.png" width="100%" alt="Watch the 18-second ToucanDB product overview">
+  </a>
+</p>
+
+<p align="center"><strong>▶ Watch the 18-second ToucanDB overview — with sound</strong></p>
+
 An embedded, local-first vector database for semantic search, RAG, and
 application memory. ToucanDB combines atomic SQLite persistence with FAISS
 search and does not require a separate database server.
-
-![ToucanDB logo](assets/toucandb-logo.png "ToucanDB vector database")
 
 [![PyPI](https://img.shields.io/pypi/v/toucandb.svg)](https://pypi.org/project/toucandb/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
