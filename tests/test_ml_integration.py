@@ -138,6 +138,7 @@ async def test_document_upsert_replaces_existing_id_without_growing_count(tmp_pa
     results = await db.semantic_search("signals", "prepare beta notes", k=1)
     assert results[0]["id"] == "signal-1"
     assert results[0]["metadata"]["version"] == 2
+    await db.close()
 
 
 @pytest.mark.asyncio
@@ -161,6 +162,7 @@ async def test_flat_dot_product_uses_inner_product_index(tmp_path):
         "orthogonal",
     ]
     assert (result.data or [])[0]["score"] == pytest.approx(2.0)
+    await db.close()
 
 
 @pytest.mark.asyncio
