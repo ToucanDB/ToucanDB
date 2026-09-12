@@ -9,7 +9,7 @@ authors:
     email: "pierre@ph7.me"
     website: "https://pierrehenry.dev"
 version: "2.0.0"
-date-released: 2026-07-19
+date-released: 2026-09-12
 url: "https://github.com/ToucanDB/ToucanDB"
 repository-code: "https://github.com/ToucanDB/ToucanDB"
 license: MIT

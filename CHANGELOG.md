@@ -3,7 +3,7 @@
 All notable changes to ToucanDB are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
-## [2.0.0] - 2026-07-19
+## [2.0.0] - 2026-09-12
 
 ### Added
 

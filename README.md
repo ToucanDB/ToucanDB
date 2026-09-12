@@ -3,8 +3,8 @@
 **Store, index, and search high-dimensional vector embeddings. Built for RAG systems, semantic search, and LLM applications.**
 
 <p align="center">
-  <a href="assets/promo/toucandb-promo.mp4">
-    <img src="assets/promo/toucandb-promo-poster.png" width="100%" alt="Watch the 18-second ToucanDB product overview">
+  <a href="https://github.com/ToucanDB/ToucanDB/blob/main/assets/promo/toucandb-promo.mp4">
+    <img src="https://raw.githubusercontent.com/ToucanDB/ToucanDB/main/assets/promo/toucandb-promo-poster.png" width="100%" alt="Watch the 18-second ToucanDB product overview">
   </a>
 </p>
 
@@ -17,7 +17,7 @@ search and does not require a separate database server.
 [![PyPI](https://img.shields.io/pypi/v/toucandb.svg)](https://pypi.org/project/toucandb/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/ToucanDB/ToucanDB/actions/workflows/ci.yml/badge.svg)](https://github.com/ToucanDB/ToucanDB/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](https://github.com/ToucanDB/ToucanDB/blob/main/LICENSE.md)
 
 ## 📋 Main features in version 2
 
@@ -120,10 +120,10 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-See [the RAG guide](docs/rag.md) and
-[`examples/rag_pipeline.py`](examples/rag_pipeline.py) for a runnable example.
+See [the RAG guide](https://github.com/ToucanDB/ToucanDB/blob/main/docs/rag.md) and
+[`examples/rag_pipeline.py`](https://github.com/ToucanDB/ToucanDB/blob/main/examples/rag_pipeline.py) for a runnable example.
 Production tracing, recall/MRR evaluation, postprocessing, and semantic
-clustering are covered in [the LLM pipeline guide](docs/llm-pipelines.md).
+clustering are covered in [the LLM pipeline guide](https://github.com/ToucanDB/ToucanDB/blob/main/docs/llm-pipelines.md).
 
 ## Raw-vector quick start
 
@@ -201,9 +201,9 @@ Metadata filters use adaptive candidate expansion. Selective filters may
 require more index work; benchmark with the metadata distribution and recall
 requirements of the real corpus.
 
-See [architecture](docs/architecture.md),
-[performance guidance](docs/performance.md), and the
-[2.0 migration guide](docs/migration-2.0.md). FAISS topic discovery is a
+See [architecture](https://github.com/ToucanDB/ToucanDB/blob/main/docs/architecture.md),
+[performance guidance](https://github.com/ToucanDB/ToucanDB/blob/main/docs/performance.md), and the
+[2.0 migration guide](https://github.com/ToucanDB/ToucanDB/blob/main/docs/migration-2.0.md). FAISS topic discovery is a
 separate, non-persistent analysis operation; IVF's internal centroids are search
 partitions and should not be treated as product labels.
 
@@ -223,7 +223,7 @@ For iOS and macOS, the Python wheel is not embedded into the app. SimpliXio uses
 a native Swift runtime built from Apple Natural Language, SQLite WAL,
 Accelerate, and actor isolation. It synchronizes source records rather than
 model-specific vectors and needs no backend for an on-device-only experience.
-See [Apple integration](docs/apple-integration.md).
+See [Apple integration](https://github.com/ToucanDB/ToucanDB/blob/main/docs/apple-integration.md).
 
 ## Security boundary
 
@@ -256,8 +256,8 @@ embeddings, filters by project, and prunes deleted records with a bulk
 transaction. SimpliXio keeps deterministic product ranking and sensitivity
 rules as the source of truth; ToucanDB supplies semantic candidates.
 
-See [the reviewed use case](docs/real-project-use-cases.md) and
-[`examples/simplixio_signal_memory.py`](examples/simplixio_signal_memory.py).
+See [the reviewed use case](https://github.com/ToucanDB/ToucanDB/blob/main/docs/real-project-use-cases.md) and
+[`examples/simplixio_signal_memory.py`](https://github.com/ToucanDB/ToucanDB/blob/main/examples/simplixio_signal_memory.py).
 
 ## Project status and limits
 
@@ -276,7 +276,8 @@ ToucanDB was created and is maintained by **Pierre-Henry Soria**:
 - LinkedIn: [linkedin.com/in/ph7enry](https://www.linkedin.com/in/ph7enry/)
 
 Additional acknowledgements and citation details are in
-[CREDITS.md](CREDITS.md) and [CITATION.cff](CITATION.cff).
+[CREDITS.md](https://github.com/ToucanDB/ToucanDB/blob/main/CREDITS.md) and
+[CITATION.cff](https://github.com/ToucanDB/ToucanDB/blob/main/CITATION.cff).
 
 ## Why “ToucanDB”?
 
@@ -284,12 +285,12 @@ Toucans reflect the project’s aim: precise retrieval, adaptability across data
 sources, and a vivid local-first identity. Pierre-Henry’s family history in the
 Amazon and lifelong love of birds inspired the name.
 
-![Pierre-Henry with toucans](assets/why-its-called-toucandb.jpeg "Why ToucanDB is named after toucans")
+![Pierre-Henry with toucans](https://raw.githubusercontent.com/ToucanDB/ToucanDB/main/assets/why-its-called-toucandb.jpeg "Why ToucanDB is named after toucans")
 
 ## Contributing and license
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow. ToucanDB is
-released under the [MIT License](LICENSE.md).
+See [CONTRIBUTING.md](https://github.com/ToucanDB/ToucanDB/blob/main/CONTRIBUTING.md) for the development workflow. ToucanDB is
+released under the [MIT License](https://github.com/ToucanDB/ToucanDB/blob/main/LICENSE.md).
 
 ---
 
