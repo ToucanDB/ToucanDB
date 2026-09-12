@@ -496,12 +496,14 @@ class VectorStorage:
         self._vector_cache: OrderedDict[VectorId, tuple[Vector, int]] = OrderedDict()
         self._cache_hits = 0
         self._cache_misses = 0
+        connection: sqlite3.Connection | None = None
         try:
-            self._connection = sqlite3.connect(
+            connection = sqlite3.connect(
                 self.database_path,
                 timeout=5.0,
                 check_same_thread=False,
             )
+            self._connection = connection
             self._connection.execute("PRAGMA journal_mode=WAL")
             self._connection.execute("PRAGMA synchronous=NORMAL")
             self._connection.execute("PRAGMA temp_store=MEMORY")
@@ -510,9 +512,11 @@ class VectorStorage:
             self._validate_legacy_key_before_initializing_encryption()
             self._verify_encryption_mode()
             self._migrate_legacy_storage()
-        except (EncryptionError, StorageError):
-            raise
         except Exception as exc:
+            if connection is not None:
+                connection.close()
+            if isinstance(exc, (EncryptionError, StorageError)):
+                raise
             raise StorageError("open", str(self.database_path), str(exc)) from exc
 
     def _initialize_database(self) -> None:
@@ -1055,7 +1059,11 @@ class VectorCollection:
             cache_hit_ratio=0.0,
             compression_ratio=1.0,
         )
-        self._load_index_or_rebuild()
+        try:
+            self._load_index_or_rebuild()
+        except Exception:
+            self.storage.close()
+            raise
 
     @property
     def _snapshot_path(self) -> Path:
