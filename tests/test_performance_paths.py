@@ -340,3 +340,43 @@ async def test_whole_operation_is_validated_before_any_batch_commits(
     assert (await db.insert_vectors("items", good, batch_size=2)).success
     assert sorted(db.list_vector_ids("items")) == [0, 1, 2, 3, 4]
     await db.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("index_type", ["flat", "hnsw", "ivf"])
+async def test_exact_fallback_works_on_an_index_restored_from_a_snapshot(
+    tmp_path: Path, index_type: str
+) -> None:
+    """A reopened index comes from ``faiss.read_index``, not a constructor.
+
+    The exact pass reads the flat vectors behind an HNSW graph and the tombstone
+    bitmap is rebuilt from the snapshot mapping, so both must survive a restart.
+    """
+    data = _unit_rows(9, 3000, 12)
+    path = tmp_path / "restored"
+    db = await ToucanDB.create(path)
+    await db.create_collection(create_schema("items", 12, index_type=index_type))
+    assert (
+        await db.insert_vectors(
+            "items",
+            [
+                {"id": i, "vector": data[i], "metadata": {"rare": i % 500}}
+                for i in range(3000)
+            ],
+        )
+    ).success
+    # One of the six matching vectors, plus scattered non-matching ones.
+    deleted_ids = [7, *range(1, 3000, 40)]
+    assert (await db.delete_vectors("items", deleted_ids)).success
+    await db.close()
+
+    db = await ToucanDB.create(path)
+    assert db.get_collection("items").index.tombstone_count == len(deleted_ids)
+    allowed = [i for i in range(3000) if i % 500 == 7 and i != 7]
+    result = await db.search_vectors(
+        "items", SearchQuery(vector=data[507], k=10, metadata_filter={"rare": 7})
+    )
+    assert result.success, result.error_message
+    returned = [item["id"] for item in result.data or []]
+    assert returned == _exact_top_ids(data, data[507], allowed, 10)
+    await db.close()
