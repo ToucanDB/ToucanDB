@@ -306,8 +306,12 @@ class RAGStore:
             raise ValueError("No embedding provider configured")
         provider_id = embedding_provider_id(provider)
         changed_count = 0
+        # One batched read off the event loop instead of a query per chunk.
+        stored = await asyncio.to_thread(
+            collection.storage.load_vectors, [chunk.id for chunk in chunks]
+        )
         for chunk in chunks:
-            current = collection.storage.load_vector(chunk.id)
+            current = stored.get(chunk.id)
             if (
                 current is None
                 or current.metadata.get("_rag_content_hash")

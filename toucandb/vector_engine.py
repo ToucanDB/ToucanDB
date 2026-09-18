@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import itertools
 import json
 import logging
 import math
@@ -20,7 +21,7 @@ import threading
 import time
 import uuid
 from collections import OrderedDict
-from collections.abc import Iterator, Sequence
+from collections.abc import Collection, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -62,6 +63,23 @@ logger = logging.getLogger(__name__)
 # centroid. Exact flat search is both cheaper and at least as accurate below
 # that point, so IVF collections promote only when useful training is present.
 _IVF_MIN_POINTS_PER_CENTROID = 39
+
+# A rebuild trains IVF on this many examples per centroid when the collection
+# has them. It sits above the FAISS warning floor and well below the 256 at
+# which FAISS starts subsampling, bounding the transient training matrix.
+_IVF_TRAIN_POINTS_PER_CENTROID = 64
+
+# SQLite's default host-parameter ceiling was 999 before 3.32.
+_SQLITE_MAX_KEYS_PER_QUERY = 500
+
+# A FAISS flat scan loses its BLAS kernel when it is given an IDSelector, which
+# costs a constant ~2.4x however few IDs are excluded. Asking for
+# ``k + tombstones`` keeps BLAS but grows the result heap linearly. Measured on
+# 100k vectors, over-fetching wins below roughly 600 tombstones at 64 dimensions
+# and 3,500 at 384, and is never more than ~30% from the better choice at this
+# threshold. Graph and inverted-list scans have no BLAS path to lose, so they
+# always use the selector.
+_FLAT_OVERFETCH_MAX_TOMBSTONES = 1024
 
 
 def _utcnow() -> datetime:
@@ -105,6 +123,10 @@ class VectorIndex:
         self.id_mapping: dict[int, VectorId] = {}
         self.reverse_mapping: dict[VectorId, int] = {}
         self.next_id = 0
+        # One bit per physical FAISS ID, set while the ID is active. FAISS reads
+        # it through an IDSelector so tombstones are skipped inside the search
+        # instead of being over-fetched and discarded in Python.
+        self._active_bitmap: np.ndarray[Any, Any] = np.zeros(0, dtype=np.uint8)
         self._lock = threading.RLock()
         self._initialize_index()
 
@@ -191,13 +213,53 @@ class VectorIndex:
                 f"Unsupported index type: {self.schema.index_type.value}",
             )
 
+    @property
+    def training_target(self) -> int:
+        """Examples the next ``add_vectors`` call should carry to train well."""
+        with self._lock:
+            if self.index is None or self.index.is_trained:
+                return 0
+            return int(self.index.nlist) * _IVF_TRAIN_POINTS_PER_CENTROID
+
+    def _mark_active(self, start: int, stop: int) -> None:
+        required = (stop + 7) >> 3
+        if required > len(self._active_bitmap):
+            grown = np.zeros(max(required, 2 * len(self._active_bitmap)), np.uint8)
+            grown[: len(self._active_bitmap)] = self._active_bitmap
+            self._active_bitmap = grown
+        ids = np.arange(start, stop, dtype=np.int64)
+        np.bitwise_or.at(
+            self._active_bitmap,
+            ids >> 3,
+            np.left_shift(1, ids & 7).astype(np.uint8),
+        )
+
+    def _mark_inactive(self, faiss_id: int) -> None:
+        byte = faiss_id >> 3
+        self._active_bitmap[byte] = int(self._active_bitmap[byte]) & ~(
+            1 << (faiss_id & 7)
+        )
+
     def reset(self, expected_size: int = 0) -> None:
         """Reset both FAISS and logical-ID mappings."""
         with self._lock:
             self.id_mapping.clear()
             self.reverse_mapping.clear()
             self.next_id = 0
+            self._active_bitmap = np.zeros(0, dtype=np.uint8)
             self._initialize_index(expected_size)
+
+    def restore(self, index: Any, mapping: dict[int, VectorId], next_id: int) -> None:
+        """Adopt a validated snapshot and derive its reverse map and bitmap."""
+        with self._lock:
+            self.index = index
+            self.id_mapping = mapping
+            self.reverse_mapping = {value: key for key, value in mapping.items()}
+            self.next_id = next_id
+            active = np.zeros(next_id, dtype=bool)
+            if mapping:
+                active[np.fromiter(mapping, dtype=np.int64, count=len(mapping))] = True
+            self._active_bitmap = np.packbits(active, bitorder="little")
 
     def add_vectors(self, vectors: list[Vector]) -> list[int]:
         """Add vectors and return their positional FAISS IDs."""
@@ -232,13 +294,73 @@ class VectorIndex:
                 self.id_mapping[faiss_id] = vector.id
                 self.reverse_mapping[vector.id] = faiss_id
             self.next_id += len(vectors)
+            self._mark_active(start_id, self.next_id)
             return faiss_ids
 
+    def _search_parameters(
+        self,
+        query: SearchQuery,
+        active_limit: int,
+        exact: bool,
+        exclude_tombstones: bool,
+    ) -> Any | None:
+        """Per-query FAISS parameters; never mutates state shared by searches."""
+        options: dict[str, Any] = {}
+        if exclude_tombstones:
+            # The selector borrows the bitmap's memory, which stays valid because
+            # every mutation and search runs under this index's lock. Its first
+            # argument is the bitmap length in bytes, not the number of IDs.
+            options["sel"] = faiss.IDSelectorBitmap(
+                len(self._active_bitmap),
+                faiss.swig_ptr(self._active_bitmap),
+            )
+        if self.schema.index_type == IndexType.HNSW and not exact:
+            return faiss.SearchParametersHNSW(
+                efSearch=query.ef or self.config.ef_search,
+                **options,
+            )
+        # An IVF schema below its training floor is still a flat index.
+        nlist = getattr(self.index, "nlist", None)
+        if self.schema.index_type == IndexType.IVF and nlist is not None:
+            requested_nprobe = query.nprobe or self.config.nprobe
+            if exact or (query.metadata_filter and active_limit >= self.active_count):
+                # Probing every list makes IVF an exact search.
+                requested_nprobe = int(nlist)
+            return faiss.SearchParametersIVF(
+                nprobe=min(int(nlist), requested_nprobe),
+                **options,
+            )
+        return faiss.SearchParameters(**options) if options else None
+
     def search(self, query: SearchQuery, active_limit: int) -> list[SearchResult]:
-        """Return the closest active candidates, compensating for tombstones."""
+        """Return the closest active candidates; tombstones never surface."""
         with self._lock:
-            if self.index is None or self.index.ntotal == 0 or active_limit <= 0:
-                return []
+            return list(self.search_candidates(query, active_limit)[0])
+
+    def search_candidates(
+        self,
+        query: SearchQuery,
+        active_limit: int,
+        *,
+        exact: bool = False,
+        skip: Collection[VectorId] = (),
+    ) -> tuple[Iterator[SearchResult], bool]:
+        """Return ranked candidates and whether the index came up short.
+
+        An approximate index can supply fewer neighbours than requested even
+        when that many are active: an HNSW graph is not fully reachable, and
+        IVF only sees the lists it probes. The flag lets a caller that must
+        consider every vector retry with ``exact=True``, which scans the flat
+        vectors HNSW keeps alongside its graph or probes every IVF list.
+
+        Candidates are built lazily, best first, because a filtered search
+        usually stops long before the end of a wide candidate list; IDs in
+        ``skip`` are never built at all. Consume the iterator before the index
+        is mutated, as ``VectorCollection`` does under its operation lock.
+        """
+        with self._lock:
+            if self.index is None or self.active_count == 0 or active_limit <= 0:
+                return iter(()), False
 
             query_vector = np.asarray(query.vector, dtype=np.float32).reshape(1, -1)
             if not np.isfinite(query_vector).all():
@@ -252,57 +374,61 @@ class VectorIndex:
                 if norm > 0:
                     query_vector = query_vector / norm
 
-            if self.schema.index_type == IndexType.HNSW:
-                faiss.ParameterSpace().set_index_parameter(
-                    self.index,
-                    "efSearch",
-                    query.ef or self.config.ef_search,
-                )
-            elif self.schema.index_type == IndexType.IVF and hasattr(
-                self.index, "nlist"
-            ):
-                requested_nprobe = query.nprobe or self.config.nprobe
-                if query.metadata_filter and active_limit >= self.active_count:
-                    requested_nprobe = int(self.index.nlist)
-                self.index.nprobe = min(int(self.index.nlist), requested_nprobe)
-
-            physical_limit = min(
-                self.physical_count,
-                active_limit + self.tombstone_count,
+            searched = self.index
+            if exact and self.schema.index_type == IndexType.HNSW:
+                searched = faiss.downcast_index(self.index.storage)
+            is_flat_scan = not hasattr(searched, "hnsw") and not hasattr(
+                searched, "nlist"
             )
-            distances, indices = self.index.search(query_vector, physical_limit)
-            results: list[SearchResult] = []
-            for faiss_id_value, distance_value in zip(
-                indices[0], distances[0], strict=False
-            ):
-                faiss_id = int(faiss_id_value)
-                if faiss_id == -1:
-                    break
+            tombstones = self.tombstone_count
+            overfetch = is_flat_scan and tombstones <= _FLAT_OVERFETCH_MAX_TOMBSTONES
+            requested = min(self.active_count, active_limit)
+            distances, indices = searched.search(
+                query_vector,
+                # Tombstones are dropped below; ``requested`` never exceeds the
+                # active count, so this stays within the physical count.
+                requested + tombstones if overfetch else requested,
+                params=self._search_parameters(
+                    query,
+                    active_limit,
+                    exact,
+                    exclude_tombstones=tombstones > 0 and not overfetch,
+                ),
+            )
+            # FAISS pads with -1, always at the end, when it runs out.
+            found = int(np.count_nonzero(indices[0] != -1))
+            came_up_short = found < len(indices[0])
+            faiss_ids: list[int] = indices[0][:found].tolist()
+            raw_distances: list[float] = distances[0][:found].tolist()
+
+        similarity = self.schema.metric in {
+            DistanceMetric.COSINE,
+            DistanceMetric.DOT_PRODUCT,
+        }
+
+        def ranked() -> Iterator[SearchResult]:
+            produced = 0
+            for faiss_id, distance in zip(faiss_ids, raw_distances, strict=True):
                 vector_id = self.id_mapping.get(faiss_id)
                 if vector_id is None:
-                    continue
-
-                distance = float(distance_value)
-                score = (
-                    distance
-                    if self.schema.metric
-                    in {DistanceMetric.COSINE, DistanceMetric.DOT_PRODUCT}
-                    else 1.0 / (1.0 + distance)
-                )
+                    continue  # a tombstone that an over-fetching flat scan saw
+                score = distance if similarity else 1.0 / (1.0 + distance)
                 if query.threshold is not None and score < query.threshold:
-                    continue
-                results.append(
-                    SearchResult(
+                    # FAISS returns best-first, so every later score is lower.
+                    return
+                produced += 1
+                if vector_id not in skip:
+                    yield SearchResult(
                         id=vector_id,
                         vector=None,
                         score=score,
                         metadata={},
                         distance=distance,
                     )
-                )
-                if len(results) >= active_limit:
-                    break
-            return results
+                if produced >= active_limit:
+                    return
+
+        return ranked(), came_up_short
 
     def remove_vector(self, vector_id: VectorId) -> bool:
         """Logically remove a vector; HNSW is compacted by collection policy."""
@@ -311,6 +437,7 @@ class VectorIndex:
             if faiss_id is None:
                 return False
             self.id_mapping.pop(faiss_id, None)
+            self._mark_inactive(faiss_id)
             return True
 
     def get_stats(self) -> dict[str, Any]:
@@ -615,7 +742,11 @@ class VectorStorage:
     def _storage_key(cls, vector_id: VectorId) -> str:
         return hashlib.sha256(cls._encode_id(vector_id)).hexdigest()
 
-    def _serialize_vector(self, vector: Vector) -> tuple[bytes, bytes, int]:
+    # Fixed per-entry allowance for the Vector object, its ID, and timestamp.
+    _CACHE_ENTRY_OVERHEAD = 256
+
+    def _serialize_vector(self, vector: Vector) -> tuple[bytes, bytes, int, int]:
+        """Return the encoded ID, stored payload, raw size, and cache weight."""
         self._validate_id(vector.id)
         data = np.asarray(vector.data, dtype=np.float32)
         if data.ndim != 1 or len(data) != self.schema.dimensions:
@@ -633,10 +764,11 @@ class VectorStorage:
             data,
             self.schema.quantization,
         )
+        stored_data = quantized.tobytes()
         record = {
             "format": self.FORMAT_VERSION,
             "id": vector.id,
-            "data": quantized.tobytes(),
+            "data": stored_data,
             "shape": quantized.shape,
             "dtype": str(quantized.dtype),
             "quantization_scale": quantization_scale,
@@ -653,9 +785,11 @@ class VectorStorage:
             ) from exc
         compressed = self.compression.compress_data(raw, self.schema.compression)
         encrypted = self.encryption.encrypt(compressed)
-        return self._encode_id(vector.id), encrypted, len(raw)
+        weight = self._cache_weight(data.nbytes, len(raw), len(stored_data))
+        return self._encode_id(vector.id), encrypted, len(raw), weight
 
-    def _deserialize_vector(self, payload: bytes) -> Vector:
+    def _deserialize_vector(self, payload: bytes) -> tuple[Vector, int]:
+        """Decode one stored payload into a vector and its cache weight."""
         decrypted = self.encryption.decrypt(payload)
         raw = self.compression.decompress_data(
             decrypted,
@@ -671,20 +805,23 @@ class VectorStorage:
             vector_data = array.astype(np.float32) * float(scale)
         else:
             vector_data = array.astype(np.float32)
-        return Vector(
+        vector = Vector(
             id=record["id"],
             data=vector_data,
             metadata=record.get("metadata", {}),
             timestamp=datetime.fromisoformat(record["timestamp"]),
         )
+        weight = self._cache_weight(vector_data.nbytes, len(raw), len(record["data"]))
+        return vector, weight
 
-    @staticmethod
-    def _cache_weight(vector: Vector) -> int:
-        try:
-            metadata_size = len(msgpack.packb(vector.metadata, use_bin_type=True))
-        except Exception:
-            metadata_size = 1024
-        return int(vector.data.nbytes) + metadata_size + 256
+    @classmethod
+    def _cache_weight(cls, data_bytes: int, raw_size: int, stored_data: int) -> int:
+        """Estimate resident size from sizes serialization already produced.
+
+        The raw record minus its vector bytes is the packed metadata plus a few
+        fixed fields, so no second MessagePack pass over the metadata is needed.
+        """
+        return data_bytes + max(0, raw_size - stored_data) + cls._CACHE_ENTRY_OVERHEAD
 
     def _cache_get(self, vector_id: VectorId) -> Vector | None:
         cached = self._vector_cache.get(vector_id)
@@ -695,13 +832,18 @@ class VectorStorage:
         self._cache_hits += 1
         return cached[0]
 
-    def _cache_put(self, vector: Vector) -> None:
+    def _cache_put(self, vector: Vector, weight: int, *, evict: bool = True) -> None:
+        """Cache a record; with ``evict=False`` only free room is ever used."""
         if self._cache_limit <= 0:
+            return
+        if not evict and (
+            vector.id in self._vector_cache
+            or self._cache_bytes + weight > self._cache_limit
+        ):
             return
         previous = self._vector_cache.pop(vector.id, None)
         if previous is not None:
             self._cache_bytes -= previous[1]
-        weight = self._cache_weight(vector)
         if weight > self._cache_limit:
             return
         self._vector_cache[vector.id] = (vector, weight)
@@ -734,11 +876,14 @@ class VectorStorage:
         if not vectors:
             return
         prepared = []
+        weights = []
         for vector in vectors:
-            vector_id, payload, raw_size = self._serialize_vector(vector)
+            vector_id, payload, raw_size, weight = self._serialize_vector(vector)
+            weights.append(weight)
             prepared.append(
                 (
-                    self._storage_key(vector.id),
+                    # Same digest as _storage_key, without encoding the ID twice.
+                    hashlib.sha256(vector_id).hexdigest(),
                     vector_id,
                     payload,
                     raw_size,
@@ -746,23 +891,25 @@ class VectorStorage:
                 )
             )
         try:
-            with self._lock, self._connection:
-                self._connection.executemany(
-                    """
-                    INSERT INTO vectors(
-                        storage_key, vector_id, payload, raw_size, updated_at
-                    ) VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT(storage_key) DO UPDATE SET
-                        vector_id = excluded.vector_id,
-                        payload = excluded.payload,
-                        raw_size = excluded.raw_size,
-                        updated_at = excluded.updated_at
-                    """,
-                    prepared,
-                )
-                self._increment_generation()
-                for vector in vectors:
-                    self._cache_put(vector)
+            with self._lock:
+                with self._connection:
+                    self._connection.executemany(
+                        """
+                        INSERT INTO vectors(
+                            storage_key, vector_id, payload, raw_size, updated_at
+                        ) VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT(storage_key) DO UPDATE SET
+                            vector_id = excluded.vector_id,
+                            payload = excluded.payload,
+                            raw_size = excluded.raw_size,
+                            updated_at = excluded.updated_at
+                        """,
+                        prepared,
+                    )
+                    self._increment_generation()
+                # Only a committed record may be served from the cache.
+                for vector, weight in zip(vectors, weights, strict=True):
+                    self._cache_put(vector, weight)
         except (ValidationError, EncryptionError):
             raise
         except Exception as exc:
@@ -773,51 +920,84 @@ class VectorStorage:
         self.store_vectors([vector])
 
     def load_vector(self, vector_id: VectorId) -> Vector | None:
-        self._validate_id(vector_id)
+        return self.load_vectors([vector_id]).get(vector_id)
+
+    def load_vectors(self, vector_ids: Sequence[VectorId]) -> dict[VectorId, Vector]:
+        """Load many vectors, reading every cache miss with one query per chunk.
+
+        Missing IDs are simply absent from the returned mapping.
+        """
+        for vector_id in vector_ids:
+            self._validate_id(vector_id)
+        found: dict[VectorId, Vector] = {}
         with self._lock:
-            cached = self._cache_get(vector_id)
-            if cached is not None:
-                return cached
+            missing: dict[str, VectorId] = {}
+            for vector_id in vector_ids:
+                if vector_id in found:
+                    continue
+                cached = self._cache_get(vector_id)
+                if cached is not None:
+                    found[vector_id] = cached
+                else:
+                    missing[self._storage_key(vector_id)] = vector_id
             try:
-                row = self._connection.execute(
-                    "SELECT payload FROM vectors WHERE storage_key = ?",
-                    (self._storage_key(vector_id),),
-                ).fetchone()
-                if row is None:
-                    return None
-                vector = self._deserialize_vector(cast(bytes, row[0]))
-                if vector.id != vector_id:
-                    raise ValueError("Vector ID hash collision or corrupt record")
-                self._cache_put(vector)
-                return vector
+                keys = list(missing)
+                for start in range(0, len(keys), _SQLITE_MAX_KEYS_PER_QUERY):
+                    chunk = keys[start : start + _SQLITE_MAX_KEYS_PER_QUERY]
+                    placeholders = ",".join("?" * len(chunk))
+                    rows = self._connection.execute(
+                        "SELECT storage_key, payload FROM vectors "
+                        f"WHERE storage_key IN ({placeholders})",
+                        chunk,
+                    ).fetchall()
+                    for storage_key, payload in rows:
+                        vector, weight = self._deserialize_vector(cast(bytes, payload))
+                        if vector.id != missing[storage_key]:
+                            raise ValueError(
+                                "Vector ID hash collision or corrupt record"
+                            )
+                        self._cache_put(vector, weight)
+                        found[vector.id] = vector
             except (EncryptionError, ValidationError):
                 raise
             except Exception as exc:
                 raise StorageError("read", str(self.database_path), str(exc)) from exc
+        return found
 
     def iter_vectors(self, batch_size: int = 2048) -> Iterator[list[Vector]]:
-        """Stream all vectors in bounded batches."""
+        """Stream all vectors in bounded batches, ordered by storage key.
+
+        Each batch is one keyset-paginated query, so neither the storage lock
+        nor a SQLite cursor is held while the consumer works or if it abandons
+        the iterator. A scan only fills free cache room; evicting hot records
+        in favour of a one-off sequential read would make later searches slower.
+        """
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
-        with self._lock:
-            try:
-                cursor = self._connection.execute(
-                    "SELECT payload FROM vectors ORDER BY storage_key"
-                )
-                while True:
-                    rows = cursor.fetchmany(batch_size)
-                    if not rows:
-                        break
-                    vectors = [
-                        self._deserialize_vector(cast(bytes, row[0])) for row in rows
-                    ]
-                    for vector in vectors:
-                        self._cache_put(vector)
-                    yield vectors
-            except (EncryptionError, ValidationError):
-                raise
-            except Exception as exc:
-                raise StorageError("read", str(self.database_path), str(exc)) from exc
+        last_key = ""
+        while True:
+            with self._lock:
+                try:
+                    rows = self._connection.execute(
+                        "SELECT storage_key, payload FROM vectors "
+                        "WHERE storage_key > ? ORDER BY storage_key LIMIT ?",
+                        (last_key, batch_size),
+                    ).fetchall()
+                    vectors = []
+                    for _, payload in rows:
+                        vector, weight = self._deserialize_vector(cast(bytes, payload))
+                        self._cache_put(vector, weight, evict=False)
+                        vectors.append(vector)
+                except (EncryptionError, ValidationError):
+                    raise
+                except Exception as exc:
+                    raise StorageError(
+                        "read", str(self.database_path), str(exc)
+                    ) from exc
+            if not rows:
+                return
+            last_key = cast(str, rows[-1][0])
+            yield vectors
 
     def delete_vector(self, vector_id: VectorId) -> bool:
         return self.delete_vectors([vector_id]) > 0
@@ -832,17 +1012,19 @@ class VectorStorage:
             )
         for vector_id in vector_ids:
             self._validate_id(vector_id)
+        storage_keys = [(self._storage_key(vector_id),) for vector_id in vector_ids]
         try:
-            with self._lock, self._connection:
-                deleted = 0
-                for vector_id in vector_ids:
-                    cursor = self._connection.execute(
+            with self._lock:
+                with self._connection:
+                    # For executemany, rowcount is the total across all keys.
+                    cursor = self._connection.executemany(
                         "DELETE FROM vectors WHERE storage_key = ?",
-                        (self._storage_key(vector_id),),
+                        storage_keys,
                     )
-                    deleted += max(0, cursor.rowcount)
+                    deleted = max(0, cursor.rowcount)
+                    if deleted > 0:
+                        self._increment_generation()
                 if deleted > 0:
-                    self._increment_generation()
                     for vector_id in vector_ids:
                         cached = self._vector_cache.pop(vector_id, None)
                         if cached is not None:
@@ -862,6 +1044,15 @@ class VectorStorage:
                 return [self._decode_id(cast(bytes, row[0])) for row in rows]
             except Exception as exc:
                 raise StorageError("list", str(self.database_path), str(exc)) from exc
+
+    def count(self) -> int:
+        """Number of stored vectors, without the payload scan of full stats."""
+        with self._lock:
+            try:
+                row = self._connection.execute("SELECT COUNT(*) FROM vectors")
+                return int(row.fetchone()[0])
+            except Exception as exc:
+                raise StorageError("count", str(self.database_path), str(exc)) from exc
 
     def get_storage_stats(self) -> dict[str, Any]:
         with self._lock:
@@ -1027,6 +1218,9 @@ class VectorCollection:
         self._operation_lock = threading.RLock()
         self._closed = False
         self._mutations_since_snapshot = 0
+        # Storage generation that the on-disk snapshot mirrors, or None when the
+        # in-memory index has diverged from it (or no snapshot exists yet).
+        self._snapshot_generation: int | None = None
         self._snapshot_interval = index_snapshot_interval
         self._compaction_min_tombstones = compaction_min_tombstones
         self._compaction_ratio = compaction_ratio
@@ -1103,13 +1297,10 @@ class VectorCollection:
                 return False
             if any(key < 0 or key >= next_id for key in mapping):
                 return False
-            reverse = {value: key for key, value in mapping.items()}
-            if len(reverse) != len(mapping):
+            if len(set(mapping.values())) != len(mapping):
                 return False
-            self.index.index = loaded_index
-            self.index.id_mapping = mapping
-            self.index.reverse_mapping = reverse
-            self.index.next_id = next_id
+            self.index.restore(loaded_index, mapping, next_id)
+            self._snapshot_generation = generation
             return True
         except Exception as exc:
             logger.warning("Ignoring invalid index snapshot for %s: %s", self.name, exc)
@@ -1159,10 +1350,20 @@ class VectorCollection:
                 if candidate.name != mapping_name:
                     candidate.unlink(missing_ok=True)
             self._mutations_since_snapshot = 0
+            self._snapshot_generation = generation
         except Exception as exc:
             raise StorageError("snapshot", str(snapshot_path), str(exc)) from exc
         finally:
             temporary_index.unlink(missing_ok=True)
+
+    def _save_snapshot_if_stale(self) -> None:
+        """Skip rewriting an index file that already mirrors this generation.
+
+        Serializing FAISS costs time proportional to the whole index, which a
+        read-only session or a repeated backup should not pay again.
+        """
+        if self._snapshot_generation != self.storage.generation:
+            self._save_snapshot()
 
     def _load_index_or_rebuild(self) -> None:
         with self._operation_lock:
@@ -1171,11 +1372,23 @@ class VectorCollection:
             self._stats.total_vectors = self.index.active_count
 
     def _rebuild_index(self, *, save_snapshot: bool) -> None:
-        total = self.storage.get_storage_stats()["total_vectors"]
+        total = self.storage.count()
+        # The rebuilt layout no longer matches any snapshot on disk.
+        self._snapshot_generation = None
         self.index.reset(total)
-        batch_size = max(2048, min(self.schema.ivf_nlist, max(total, 1)))
-        for vectors in self.storage.iter_vectors(batch_size=batch_size):
-            self.index.add_vectors(vectors)
+        # Rows arrive ordered by a SHA-256 storage key, so the leading rows are
+        # a uniform sample. Hold them back until IVF has enough to train every
+        # centroid instead of training on whatever the first batch contains.
+        training_target = self.index.training_target
+        pending: list[Vector] = []
+        for vectors in self.storage.iter_vectors():
+            if len(pending) + len(vectors) < training_target:
+                pending.extend(vectors)
+                continue
+            self.index.add_vectors(pending + vectors if pending else vectors)
+            pending = []
+            training_target = 0
+        self.index.add_vectors(pending)
         self._stats.total_vectors = self.index.active_count
         if save_snapshot and total > 0:
             self._save_snapshot()
@@ -1250,64 +1463,122 @@ class VectorCollection:
                 f"Metadata must be MessagePack-serializable: {exc}",
             ) from exc
 
+    def prepare_vectors(
+        self,
+        vectors: Sequence[dict[str, Any]],
+    ) -> OperationResult[list[Vector]]:
+        """Validate raw insert records once and convert them to vectors.
+
+        Nothing is written, so a caller can vet a whole multi-batch operation
+        before its first batch commits and then insert the prepared vectors
+        without paying for the same checks a second time.
+        """
+        start_time = time.perf_counter()
+        try:
+            vector_objects: list[Vector] = []
+            seen_ids: set[VectorId] = set()
+            timestamp = _utcnow()
+            for vector_data in vectors:
+                if "id" not in vector_data or "vector" not in vector_data:
+                    raise ValidationError(
+                        "vectors",
+                        vector_data,
+                        "Each vector needs 'id' and 'vector' fields",
+                    )
+                vector_id = cast(VectorId, vector_data["id"])
+                VectorStorage._validate_id(vector_id)
+                if vector_id in seen_ids:
+                    raise ValidationError(
+                        "id", vector_id, "Duplicate vector ID in batch"
+                    )
+                seen_ids.add(vector_id)
+                try:
+                    # A value too large for float32 becomes inf and is rejected
+                    # by the finite check below, so the cast warning is noise.
+                    with np.errstate(over="ignore"):
+                        raw_vector = np.asarray(vector_data["vector"], dtype=np.float32)
+                except (TypeError, ValueError) as exc:
+                    raise ValidationError(
+                        "vector",
+                        "non-numeric",
+                        "Vectors must be one-dimensional finite numeric sequences",
+                    ) from exc
+                if raw_vector.ndim == 0:
+                    raise ValidationError(
+                        "vector",
+                        "scalar",
+                        "Vector values must be a one-dimensional sequence",
+                    )
+                if raw_vector.ndim != 1 or len(raw_vector) != self.schema.dimensions:
+                    actual = (
+                        raw_vector.shape if raw_vector.ndim != 1 else len(raw_vector)
+                    )
+                    return OperationResult.error_result(
+                        ErrorCode.DIMENSION_MISMATCH,
+                        f"Expected {self.schema.dimensions} dimensions, "
+                        f"got {actual}",
+                        (time.perf_counter() - start_time) * 1000,
+                    )
+                if not np.isfinite(raw_vector).all():
+                    raise ValidationError(
+                        "vector",
+                        "non-finite",
+                        "Vectors must contain only finite values",
+                    )
+                metadata = vector_data.get("metadata", {})
+                self.validate_metadata(metadata)
+                vector_objects.append(
+                    Vector(
+                        id=vector_id,
+                        data=raw_vector,
+                        metadata=dict(metadata),
+                        timestamp=timestamp,
+                    )
+                )
+            return OperationResult.success_result(
+                vector_objects,
+                (time.perf_counter() - start_time) * 1000,
+            )
+        except ValidationError as exc:
+            return OperationResult.error_result(
+                ErrorCode.VALIDATION_ERROR,
+                str(exc),
+                (time.perf_counter() - start_time) * 1000,
+            )
+        except Exception as exc:
+            # A record that is not even dictionary-shaped is invalid input too.
+            return OperationResult.error_result(
+                ErrorCode.VALIDATION_ERROR,
+                f"Malformed vector record: {exc}",
+                (time.perf_counter() - start_time) * 1000,
+            )
+
     def _insert_sync(
         self,
         vectors: list[dict[str, Any]],
         *,
         upsert: bool,
     ) -> OperationResult[list[VectorId]]:
+        prepared = self.prepare_vectors(vectors)
+        if not prepared.success or prepared.data is None:
+            return OperationResult.error_result(
+                prepared.error_code or ErrorCode.VALIDATION_ERROR,
+                prepared.error_message or "Invalid vectors",
+                prepared.execution_time_ms,
+            )
+        result = self._insert_prepared_sync(prepared.data, upsert=upsert)
+        result.execution_time_ms += prepared.execution_time_ms
+        return result
+
+    def _insert_prepared_sync(
+        self,
+        vector_objects: list[Vector],
+        *,
+        upsert: bool,
+    ) -> OperationResult[list[VectorId]]:
         start_time = time.perf_counter()
         try:
             with self._operation_lock:
-                vector_objects: list[Vector] = []
-                seen_ids: set[VectorId] = set()
-                for vector_data in vectors:
-                    if "id" not in vector_data or "vector" not in vector_data:
-                        raise ValidationError(
-                            "vectors",
-                            vector_data,
-                            "Each vector needs 'id' and 'vector' fields",
-                        )
-                    vector_id = cast(VectorId, vector_data["id"])
-                    VectorStorage._validate_id(vector_id)
-                    if vector_id in seen_ids:
-                        raise ValidationError(
-                            "id", vector_id, "Duplicate vector ID in batch"
-                        )
-                    seen_ids.add(vector_id)
-                    raw_vector = np.asarray(vector_data["vector"], dtype=np.float32)
-                    if (
-                        raw_vector.ndim != 1
-                        or len(raw_vector) != self.schema.dimensions
-                    ):
-                        actual = (
-                            raw_vector.shape
-                            if raw_vector.ndim != 1
-                            else len(raw_vector)
-                        )
-                        return OperationResult.error_result(
-                            ErrorCode.DIMENSION_MISMATCH,
-                            f"Expected {self.schema.dimensions} dimensions, "
-                            f"got {actual}",
-                            (time.perf_counter() - start_time) * 1000,
-                        )
-                    if not np.isfinite(raw_vector).all():
-                        raise ValidationError(
-                            "vector",
-                            "non-finite",
-                            "Vectors must contain only finite values",
-                        )
-                    metadata = vector_data.get("metadata", {})
-                    self.validate_metadata(metadata)
-                    vector_objects.append(
-                        Vector(
-                            id=vector_id,
-                            data=raw_vector,
-                            metadata=dict(metadata),
-                            timestamp=_utcnow(),
-                        )
-                    )
-
                 existing_ids = {
                     vector.id
                     for vector in vector_objects
@@ -1336,11 +1607,10 @@ class VectorCollection:
                     )
 
                 unchanged_ids: set[VectorId] = set()
-                if upsert:
+                if upsert and existing_ids:
+                    persisted_vectors = self.storage.load_vectors(list(existing_ids))
                     for vector in vector_objects:
-                        if vector.id not in existing_ids:
-                            continue
-                        persisted = self.storage.load_vector(vector.id)
+                        persisted = persisted_vectors.get(vector.id)
                         if (
                             persisted is not None
                             and persisted.metadata == vector.metadata
@@ -1395,9 +1665,89 @@ class VectorCollection:
         """Insert or upsert without blocking the caller's event loop."""
         return await asyncio.to_thread(self._insert_sync, vectors, upsert=upsert)
 
+    async def _insert_prepared(
+        self,
+        vectors: list[Vector],
+        *,
+        upsert: bool = False,
+    ) -> OperationResult[list[VectorId]]:
+        """Insert one ``prepare_vectors`` result, or a contiguous slice of it.
+
+        Private because it trusts that result's checks, including ID uniqueness.
+        """
+        return await asyncio.to_thread(
+            self._insert_prepared_sync, vectors, upsert=upsert
+        )
+
     @staticmethod
     def _matches_filter(metadata: MetadataDict, filter_dict: dict[str, Any]) -> bool:
         return all(metadata.get(key) == value for key, value in filter_dict.items())
+
+    def _collect_matches(
+        self,
+        query: SearchQuery,
+        candidates: Iterator[SearchResult],
+        rejected: set[VectorId],
+        matched: dict[VectorId, Vector],
+    ) -> list[SearchResult]:
+        """Attach stored fields to ranked candidates and apply the filter.
+
+        Records are read in chunks, each one query, rather than row by row. The
+        first chunk assumes every candidate matches, so an unfiltered search or
+        a filter that matches everything loads exactly ``k`` records; later
+        chunks grow with the observed rejection rate.
+        """
+        needs_load = (
+            query.include_metadata
+            or query.include_vectors
+            or query.metadata_filter is not None
+        )
+        if not needs_load:
+            return list(itertools.islice(candidates, query.k))
+
+        results: list[SearchResult] = []
+        while len(results) < query.k:
+            remaining = query.k - len(results)
+            judged = len(rejected) + len(matched)
+            if query.metadata_filter and judged:
+                match_rate = max(len(matched), 1) / judged
+                chunk_size = max(remaining, math.ceil(remaining / match_rate))
+            else:
+                chunk_size = remaining
+            chunk_size = min(chunk_size, _SQLITE_MAX_KEYS_PER_QUERY)
+            chunk = list(itertools.islice(candidates, chunk_size))
+            if not chunk:
+                break
+
+            unknown = [
+                result.id
+                for result in chunk
+                if result.id not in rejected and result.id not in matched
+            ]
+            loaded = self.storage.load_vectors(unknown) if unknown else {}
+            for result in chunk:
+                if result.id in rejected:
+                    continue
+                vector = matched.get(result.id) or loaded.get(result.id)
+                if vector is None:
+                    raise StorageError(
+                        "search",
+                        str(self.storage.database_path),
+                        f"Index points to missing vector {result.id!r}",
+                    )
+                if query.metadata_filter:
+                    if not self._matches_filter(vector.metadata, query.metadata_filter):
+                        rejected.add(result.id)
+                        continue
+                    matched[result.id] = vector
+                if query.include_metadata or query.metadata_filter:
+                    result.metadata = vector.metadata
+                if query.include_vectors:
+                    result.vector = vector.data
+                results.append(result)
+                if len(results) >= query.k:
+                    break
+        return results
 
     def _search_sync(self, query: SearchQuery) -> OperationResult[list[SearchResult]]:
         start_time = time.perf_counter()
@@ -1416,42 +1766,32 @@ class VectorCollection:
                 )
                 candidate_limit = min(active_count, initial_limit)
                 filtered_results: list[SearchResult] = []
+                # Filter verdicts survive widening rounds, so a wider FAISS
+                # search never reloads a record that was already judged.
+                rejected: set[VectorId] = set()
+                matched: dict[VectorId, Vector] = {}
+                exact = False
                 while candidate_limit > 0:
-                    candidates = self.index.search(query, candidate_limit)
-                    filtered_results = []
-                    for result in candidates:
-                        needs_load = (
-                            query.include_metadata
-                            or query.include_vectors
-                            or query.metadata_filter is not None
-                        )
-                        if needs_load:
-                            vector = self.storage.load_vector(result.id)
-                            if vector is None:
-                                raise StorageError(
-                                    "search",
-                                    str(self.storage.database_path),
-                                    f"Index points to missing vector {result.id!r}",
-                                )
-                            if query.include_metadata or query.metadata_filter:
-                                result.metadata = vector.metadata
-                            if query.include_vectors:
-                                result.vector = vector.data
-                        if query.metadata_filter and not self._matches_filter(
-                            result.metadata,
-                            query.metadata_filter,
-                        ):
-                            continue
-                        filtered_results.append(result)
-                        if len(filtered_results) >= query.k:
-                            break
+                    candidates, came_up_short = self.index.search_candidates(
+                        query, candidate_limit, exact=exact, skip=rejected
+                    )
+                    filtered_results = self._collect_matches(
+                        query, candidates, rejected, matched
+                    )
                     if (
                         len(filtered_results) >= query.k
-                        or candidate_limit >= active_count
                         or not query.metadata_filter
+                        or exact
                     ):
                         break
-                    candidate_limit = min(active_count, candidate_limit * 2)
+                    if came_up_short or candidate_limit >= active_count:
+                        # Widening an approximate search further cannot reach
+                        # the remaining vectors, so a filter that is still
+                        # unsatisfied gets one exact pass over all of them.
+                        exact = True
+                        candidate_limit = active_count
+                    else:
+                        candidate_limit = min(active_count, candidate_limit * 2)
 
                 execution_time = (time.perf_counter() - start_time) * 1000
                 self._stats.avg_search_latency_ms = (
@@ -1576,7 +1916,7 @@ class VectorCollection:
 
     def backup_to(self, destination: Path) -> None:
         with self._operation_lock:
-            self._save_snapshot()
+            self._save_snapshot_if_stale()
             destination.mkdir(parents=True, exist_ok=True)
             self.storage.backup_to(destination / "vectors.sqlite3")
             salt = self.storage_path / "encryption.salt"
@@ -1593,6 +1933,6 @@ class VectorCollection:
         with self._operation_lock:
             if self._closed:
                 return
-            self._save_snapshot()
+            self._save_snapshot_if_stale()
             self.storage.close()
             self._closed = True
