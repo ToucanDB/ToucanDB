@@ -9,7 +9,6 @@ and security features.
 import asyncio
 import json
 import logging
-import math
 import os
 import shutil
 import time
@@ -18,6 +17,8 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 from .exceptions import (
     CollectionNotFoundError,
@@ -435,57 +436,17 @@ class ToucanDB:
 
         # Validate the entire logical operation before the first batch commits,
         # preventing partial inserts for malformed input or cross-batch IDs.
-        seen_ids: set[VectorId] = set()
-        for vector in vectors:
-            if "id" not in vector or "vector" not in vector:
-                return OperationResult.error_result(
-                    ErrorCode.VALIDATION_ERROR,
-                    "Each vector needs 'id' and 'vector' fields",
-                )
-            vector_id = vector["id"]
-            if (
-                isinstance(vector_id, bool)
-                or not isinstance(vector_id, (str, int))
-                or (isinstance(vector_id, str) and not vector_id)
-            ):
-                return OperationResult.error_result(
-                    ErrorCode.VALIDATION_ERROR,
-                    "Vector IDs must be non-empty strings or non-boolean integers",
-                )
-            if vector_id in seen_ids:
-                return OperationResult.error_result(
-                    ErrorCode.VALIDATION_ERROR,
-                    f"Duplicate vector ID in operation: {vector_id!r}",
-                )
-            seen_ids.add(vector_id)
-            try:
-                dimensions = len(vector["vector"])
-            except TypeError:
-                return OperationResult.error_result(
-                    ErrorCode.VALIDATION_ERROR,
-                    "Vector values must be a one-dimensional sequence",
-                )
-            if dimensions != collection.schema.dimensions:
-                return OperationResult.error_result(
-                    ErrorCode.DIMENSION_MISMATCH,
-                    f"Expected {collection.schema.dimensions} dimensions, "
-                    f"got {dimensions}",
-                )
-            try:
-                if not all(math.isfinite(float(value)) for value in vector["vector"]):
-                    raise ValueError("non-finite")
-            except (TypeError, ValueError):
-                return OperationResult.error_result(
-                    ErrorCode.VALIDATION_ERROR,
-                    "Vectors must be one-dimensional finite numeric sequences",
-                )
-            try:
-                collection.validate_metadata(vector.get("metadata", {}))
-            except Exception as exc:
-                return OperationResult.error_result(
-                    ErrorCode.VALIDATION_ERROR,
-                    str(exc),
-                )
+        # This converts and checks every value with NumPy in a worker thread;
+        # the prepared vectors are then inserted without being re-validated.
+        prepared = await asyncio.to_thread(collection.prepare_vectors, vectors)
+        if not prepared.success or prepared.data is None:
+            return OperationResult.error_result(
+                prepared.error_code or ErrorCode.VALIDATION_ERROR,
+                prepared.error_message or "Invalid vectors",
+                prepared.execution_time_ms,
+            )
+        prepared_vectors = prepared.data
+        seen_ids = {vector.id for vector in prepared_vectors}
 
         existing_ids = seen_ids.intersection(collection.index.reverse_mapping)
         if existing_ids and not upsert:
@@ -509,11 +470,11 @@ class ToucanDB:
 
         # Process in batches for large datasets
         all_ids: list[VectorId] = []
-        total_time = 0.0
+        total_time = prepared.execution_time_ms
 
-        for i in range(0, len(vectors), batch_size):
-            batch = vectors[i : i + batch_size]
-            result = await collection.insert(batch, upsert=upsert)
+        for i in range(0, len(prepared_vectors), batch_size):
+            batch = prepared_vectors[i : i + batch_size]
+            result = await collection._insert_prepared(batch, upsert=upsert)
 
             if not result.success:
                 return OperationResult.error_result(
@@ -782,7 +743,7 @@ class ToucanDB:
                     f"Embedding {index} has {len(embedding)} values; "
                     f"expected {dimensions}"
                 )
-            if not all(math.isfinite(float(value)) for value in embedding):
+            if not np.isfinite(np.asarray(embedding, dtype=np.float64)).all():
                 raise ValueError(f"Embedding {index} contains a non-finite value")
         return embeddings
 
@@ -880,12 +841,16 @@ class ToucanDB:
         provider_id = embedding_provider_id(self._embedding_provider)
         desired_metadata: list[dict[str, Any]] = []
         changed_indices: list[int] = []
+        # One batched read off the event loop instead of a query per document.
+        persisted_vectors = await asyncio.to_thread(
+            collection.storage.load_vectors, vector_ids
+        )
         for index, document in enumerate(documents):
             vector_metadata = dict(metadata[index]) if metadata else {}
             vector_metadata["document"] = document
             vector_metadata["_toucandb_embedding_provider"] = provider_id
             desired_metadata.append(vector_metadata)
-            persisted = collection.storage.load_vector(vector_ids[index])
+            persisted = persisted_vectors.get(vector_ids[index])
             if persisted is not None:
                 if not upsert:
                     return OperationResult.error_result(
