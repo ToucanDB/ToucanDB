@@ -43,9 +43,28 @@ silently limited by the default.
 - Call `await collection.optimize()` after a large one-time ingest if the final
   IVF training distribution matters or an immediate compact snapshot is wanted.
 
-HNSW replacements create logical tombstones. Automatic compaction requires both
-the configured minimum tombstone count and ratio, avoiding rebuild churn for a
-few edits. Tune these through `DatabaseConfig.PerformanceConfig`.
+Replacements and deletes create logical tombstones. FAISS skips them during the
+search through an ID selector, so they do not inflate the number of results
+requested; a flat scan with few tombstones over-fetches instead, because a
+selector would cost it the BLAS kernel. Automatic compaction requires both the
+configured minimum tombstone count and ratio, avoiding rebuild churn for a few
+edits. Tune these through `DatabaseConfig.PerformanceConfig`.
+
+Tombstones still cost HNSW recall when they are clustered. Deleting most of a
+query's neighbourhood, as pruning one topic's documents does, leaves the graph
+walk spending its `ef` budget on dead nodes. Raise `ef` for those queries, lower
+the compaction thresholds, or call `await collection.optimize()` after a large
+prune.
+
+## Metadata filters
+
+Filters are applied after the vector search. ToucanDB widens the candidate set
+until `k` records match, reading candidates in batched queries sized by the
+observed match rate. When an approximate index cannot supply more candidates,
+one exact pass guarantees that every matching vector is considered. A filter
+matching very few vectors therefore costs roughly an exact scan plus a read of
+the candidates ranked ahead of the matches; keep such filters for small
+collections or partition the data into separate collections.
 
 ## Memory
 
