@@ -3,36 +3,7 @@
 All notable changes to ToucanDB are documented here. The project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
-
-### Fixed
-
-- Metadata-filtered search on HNSW no longer drops matching vectors. An HNSW
-  graph cannot enumerate every vector, so a filter left unsatisfied by the
-  approximate search now gets one exact pass over the index's flat vectors.
-- A multi-batch insert is validated with the stored `float32` type, so a value
-  that overflows it (for example `1e39`) is rejected before any batch commits
-  instead of leaving earlier batches behind.
-- An IVF rebuild trains on a sample sized for its centroid count rather than on
-  the first 2,048 rows, removing under-trained partitions and the FAISS
-  "please provide at least N training points" warning.
-- A record is cached only after its transaction commits.
-- Iterating a collection no longer holds the storage lock or a SQLite cursor
-  between batches, and no longer evicts hot cache entries.
-
-### Performance
-
-- Tombstones are excluded inside FAISS through an `IDSelector` instead of
-  over-fetching `k + tombstones` results; small flat scans keep the BLAS path.
-  HNSW search latency no longer grows with the tombstone count.
-- Search loads records in batched SQLite queries sized by the observed filter
-  selectivity, and remembers filter verdicts while widening.
-- Insert validation runs once, vectorized, in a worker thread. The previous
-  per-value Python check ran on the event loop.
-- Document and RAG synchronization read existing records in one batched query.
-- `close()` and `backup()` skip rewriting an index snapshot that is current.
-
-## [2.0.0] - 2026-09-12
+## [2.0.0] - 2026-09-19
 
 ### Added
 
@@ -68,6 +39,30 @@ All notable changes to ToucanDB are documented here. The project follows
 - Importing ToucanDB no longer configures the host application's root logger.
 - Blocking storage, FAISS, and local model calls no longer run on the event loop.
 - Collection-load failures are no longer silently logged and skipped.
+- Metadata-filtered search on HNSW no longer drops matching vectors. An HNSW
+  graph cannot enumerate every vector, so a filter left unsatisfied by the
+  approximate search now gets one exact pass over the index's flat vectors.
+- A multi-batch insert is validated with the stored `float32` type, so a value
+  that overflows it (for example `1e39`) is rejected before any batch commits
+  instead of leaving earlier batches behind.
+- An IVF rebuild trains on a sample sized for its centroid count rather than on
+  the first 2,048 rows, removing under-trained partitions and the FAISS
+  "please provide at least N training points" warning.
+- A record is cached only after its transaction commits.
+- Iterating a collection no longer holds the storage lock or a SQLite cursor
+  between batches, and no longer evicts hot cache entries.
+
+### Performance
+
+- Tombstones are excluded inside FAISS through an `IDSelector` instead of
+  over-fetching `k + tombstones` results; small flat scans keep the BLAS path.
+  HNSW search latency no longer grows with the tombstone count.
+- Search loads records in batched SQLite queries sized by the observed filter
+  selectivity, and remembers filter verdicts while widening.
+- Insert validation runs once, vectorized, in a worker thread. The previous
+  per-value Python check ran on the event loop.
+- Document and RAG synchronization read existing records in one batched query.
+- `close()` and `backup()` skip rewriting an index snapshot that is current.
 
 ### Changed
 
