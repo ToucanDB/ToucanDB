@@ -7,6 +7,8 @@ and a framework-neutral RAG pipeline.
 Highlights:
 
 - complete crash recovery and backup behavior;
+- exact metadata-filtered search on every index type, and tombstone-aware FAISS
+  search whose latency no longer grows with deletions;
 - stable, model-aware document synchronization that skips unchanged embeddings;
 - local Sentence Transformers, OpenAI, and custom embedding adapters;
 - first-class RAG retrieval and a tested SimpliXio semantic-memory adapter;
