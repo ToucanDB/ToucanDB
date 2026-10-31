@@ -2,13 +2,9 @@
 
 **Store, index, and search high-dimensional vector embeddings. Built for RAG systems, semantic search, and LLM applications.**
 
-<p align="center">
-  <a href="https://github.com/ToucanDB/ToucanDB/blob/main/assets/promo/toucandb-promo.mp4">
-    <img src="https://raw.githubusercontent.com/ToucanDB/ToucanDB/main/assets/promo/toucandb-promo-poster.png" width="100%" alt="Watch the 18-second ToucanDB product overview">
-  </a>
-</p>
+https://github.com/user-attachments/assets/7707c855-e29e-4df2-9b6f-50ef0d05534e
 
-<p align="center"><strong>▶ Watch the 18-second ToucanDB overview — with sound</strong></p>
+<p align="center"><strong>18-second ToucanDB overview — with sound</strong></p>
 
 An embedded, local-first vector database for semantic search, RAG, and
 application memory. ToucanDB combines atomic SQLite persistence with FAISS
